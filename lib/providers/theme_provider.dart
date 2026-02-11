@@ -175,7 +175,6 @@ class ThemeNotifier extends Notifier<ThemeState> {
         contrastLevel: contrastLevel?.clamp(-1.0, 1.0) ?? 0.0,
       );
     } catch (e) {
-      // Use default settings on error
       state = const ThemeState();
     }
   }
@@ -190,7 +189,6 @@ class ThemeNotifier extends Notifier<ThemeState> {
       await prefs.setBool(_keyTrueBlack, state.isTrueBlackEnabled);
       await prefs.setDouble(_keyContrastLevel, state.contrastLevel);
     } catch (e) {
-      // Log error but don't crash
       debugPrint('Error saving theme settings: $e');
     }
   }

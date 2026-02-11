@@ -46,8 +46,8 @@ class MyApp extends ConsumerWidget {
 
         if (useDynamicColor) {
           // Use dynamic color (Monet) - harmonize and then apply contrast
-          final lightHarmonized = lightDynamic!.harmonized();
-          final darkHarmonized = darkDynamic!.harmonized();
+          final lightHarmonized = lightDynamic.harmonized();
+          final darkHarmonized = darkDynamic.harmonized();
 
           // Apply contrast level using fromSeed with harmonized palette
           lightScheme = ColorScheme.fromSeed(
