@@ -203,8 +203,7 @@ class MyApp extends ConsumerWidget {
 
   /// Apply true black (OLED) override if enabled
   ///
-  /// When true black is enabled, overrides surface and scaffoldBackgroundColor
-  /// to pure black (0xFF000000) for OLED displays.
+  /// When true black is enabled, overrides surface to pure black (0xFF000000) for OLED displays.
   ColorScheme _applyTrueBlackIfEnabled(
     ColorScheme darkScheme,
     bool isEnabled,
@@ -213,10 +212,8 @@ class MyApp extends ConsumerWidget {
       return darkScheme;
     }
 
-    // Override surface colors with pure black
     return darkScheme.copyWith(
       surface: const Color(0xFF000000),
-      scaffoldBackgroundColor: const Color(0xFF000000),
     );
   }
 }
@@ -422,7 +419,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             ...servers.map((server) => ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: Text(
-                    server['flag'],
+                    server['flag'] ?? '',
                     style: const TextStyle(fontSize: 24),
                   ),
                   title: Text(server['name'] ?? ''),

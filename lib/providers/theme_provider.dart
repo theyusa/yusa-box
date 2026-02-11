@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Theme mode enum for application
@@ -135,18 +136,18 @@ class ThemeState {
 
 /// ThemeNotifier manages theme state with persistence
 class ThemeNotifier extends Notifier<ThemeState> {
-  @override
-  ThemeState build() {
-    _loadThemeSettings();
-    return const ThemeState();
-  }
-
   /// Keys for storing theme preferences in SharedPreferences
   static const String _keyThemeMode = 'theme_mode';
   static const String _keySeedColor = 'seed_color_value';
   static const String _keyDynamicColor = 'is_dynamic_color_enabled';
   static const String _keyTrueBlack = 'is_true_black_enabled';
   static const String _keyContrastLevel = 'contrast_level';
+
+  @override
+  ThemeState build() {
+    _loadThemeSettings();
+    return const ThemeState();
+  }
 
   /// Load theme settings from SharedPreferences
   Future<void> _loadThemeSettings() async {
