@@ -96,7 +96,6 @@ class _VPNHomePageState extends State<VPNHomePage> {
       darkTheme: AppTheme.darkTheme,
       themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
       home: Scaffold(
-        backgroundColor: Theme.of(context).colorScheme.surface,
         appBar: AppBar(
           title: Text(AppStrings.get('app_title')),
           centerTitle: true,
@@ -418,40 +417,118 @@ class _VPNHomePageState extends State<VPNHomePage> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(AppStrings.get('add_subscription')),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: InputDecoration(
-                labelText: AppStrings.get('subscription_name'),
-                border: const OutlineInputBorder(),
-              ),
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: _isDarkMode
+                  ? [
+                      Theme.of(context).colorScheme.surfaceContainerHighest,
+                      Theme.of(context).colorScheme.surface,
+                    ]
+                  : [
+                      Colors.blue.shade50,
+                      Colors.white,
+                    ],
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: urlController,
-              decoration: InputDecoration(
-                labelText: AppStrings.get('subscription_url'),
-                border: const OutlineInputBorder(),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.add_circle_outline,
+                size: 48,
+                color: Theme.of(context).colorScheme.primary,
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Text(
+                AppStrings.get('add_subscription'),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 24),
+              Container(
+                decoration: BoxDecoration(
+                  color: _isDarkMode
+                      ? Colors.grey.shade800
+                      : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: AppStrings.get('subscription_name'),
+                    prefixIcon: const Icon(Icons.bookmark),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                decoration: BoxDecoration(
+                  color: _isDarkMode
+                      ? Colors.grey.shade800
+                      : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: TextField(
+                  controller: urlController,
+                  decoration: InputDecoration(
+                    labelText: AppStrings.get('subscription_url'),
+                    prefixIcon: const Icon(Icons.link),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(AppStrings.get('cancel')),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(AppStrings.get('save')),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(AppStrings.get('cancel')),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            child: Text(AppStrings.get('save')),
-          ),
-        ],
       ),
     );
   }
@@ -562,17 +639,76 @@ class _VPNHomePageState extends State<VPNHomePage> {
             ),
           ]),
           const SizedBox(height: 20),
-          _buildSettingsSection(AppStrings.get('account'), [
+          _buildSettingsSection(AppStrings.get('v2ray_config'), [
             _buildSettingsTile(
-              Icons.email,
-              AppStrings.get('email'),
-              'user@example.com',
+              Icons.dns,
+              AppStrings.get('dns_servers'),
+              '',
               () {},
             ),
             _buildSettingsTile(
-              Icons.password,
-              AppStrings.get('change_password'),
+              Icons.route,
+              AppStrings.get('routing_rules'),
               '',
+              () {},
+            ),
+            _buildSettingsTile(
+              Icons.block,
+              AppStrings.get('block_ads'),
+              'Off',
+              () {},
+              trailing: Switch(
+                value: false,
+                onChanged: (value) {},
+              ),
+            ),
+          ]),
+          const SizedBox(height: 20),
+          _buildSettingsSection(AppStrings.get('singbox_config'), [
+            _buildSettingsTile(
+              Icons.speed,
+              AppStrings.get('tcp_fast_open'),
+              'On',
+              () {},
+              trailing: Switch(
+                value: true,
+                onChanged: (value) {},
+              ),
+            ),
+            _buildSettingsTile(
+              Icons.call_merge,
+              AppStrings.get('multiplex'),
+              'Off',
+              () {},
+              trailing: Switch(
+                value: false,
+                onChanged: (value) {},
+              ),
+            ),
+            _buildSettingsTile(
+              Icons.visibility,
+              AppStrings.get('sniffing'),
+              'On',
+              () {},
+              trailing: Switch(
+                value: true,
+                onChanged: (value) {},
+              ),
+            ),
+            _buildSettingsTile(
+              Icons.swap_horiz,
+              AppStrings.get('udp_relay'),
+              'On',
+              () {},
+              trailing: Switch(
+                value: true,
+                onChanged: (value) {},
+              ),
+            ),
+            _buildSettingsTile(
+              Icons.timer,
+              AppStrings.get('connection_timeout'),
+              '30s',
               () {},
             ),
           ]),
@@ -597,22 +733,6 @@ class _VPNHomePageState extends State<VPNHomePage> {
               () {},
             ),
           ]),
-          const SizedBox(height: 30),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: OutlinedButton(
-              onPressed: () {},
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red,
-                side: const BorderSide(color: Colors.red),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text(AppStrings.get('sign_out')),
-            ),
-          ),
         ],
       ),
     );
