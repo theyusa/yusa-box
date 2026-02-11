@@ -1,20 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'strings.dart';
+import 'theme.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  final isDarkMode = prefs.getBool('darkMode') ?? false;
+  final language = prefs.getString('language') ?? AppStrings.tr;
+
+  if (AppStrings.supportedLanguages.contains(language)) {
+    AppStrings.setLanguage(language);
+  }
+
+  runApp(MyApp(
+    isDarkMode: isDarkMode,
+    language: language,
+  ));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyApp extends StatefulWidget {
+  final bool isDarkMode;
+  final String language;
 
+  const MyApp({
+    super.key,
+    required this.isDarkMode,
+    required this.language,
+  });
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'YusaBox VPN',
-      theme: ThemeData(
-        colorScheme: .fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
+      title: AppStrings.get('app_title'),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: widget.isDarkMode ? ThemeMode.dark : ThemeMode.light,
       home: const VPNHomePage(),
     );
   }
@@ -29,9 +55,9 @@ class VPNHomePage extends StatefulWidget {
 
 class _VPNHomePageState extends State<VPNHomePage> {
   bool _isConnected = false;
-  String _selectedServer = '🇺🇸 United States - New York';
   int _currentIndex = 0;
-  String _selectedProtocol = 'WireGuard';
+  bool _isDarkMode = false;
+  String _currentLanguage = AppStrings.tr;
 
   final List<Map<String, dynamic>> _servers = [
     {'flag': '🇺🇸', 'name': 'United States', 'city': 'New York', 'ping': '24ms'},
@@ -41,69 +67,95 @@ class _VPNHomePageState extends State<VPNHomePage> {
     {'flag': '🇯🇵', 'name': 'Japan', 'city': 'Tokyo', 'ping': '85ms'},
   ];
 
-  final List<String> _protocols = ['WireGuard', 'OpenVPN', 'IKEv2'];
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isDarkMode = prefs.getBool('darkMode') ?? false;
+      _currentLanguage = prefs.getString('language') ?? AppStrings.tr;
+      AppStrings.setLanguage(_currentLanguage);
+    });
+  }
+
+  Future<void> _savePreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('darkMode', _isDarkMode);
+    await prefs.setString('language', _currentLanguage);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: AppBar(
-        title: const Text('YusaBox VPN'),
-        centerTitle: true,
-        elevation: 0,
-      ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          _buildVPNView(),
-          _buildSubscriptionView(),
-          _buildSettingsView(),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.vpn_lock),
-            label: 'VPN',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.workspace_premium),
-            label: 'Subscription',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+    return MaterialApp(
+      title: AppStrings.get('app_title'),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      home: Scaffold(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        appBar: AppBar(
+          title: Text(AppStrings.get('app_title')),
+          centerTitle: true,
+          elevation: 0,
+        ),
+        body: IndexedStack(
+          index: _currentIndex,
+          children: [
+            _buildVPNView(),
+            _buildSubscriptionView(),
+            _buildSettingsView(),
+          ],
+        ),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          destinations: [
+            NavigationDestination(
+              icon: const Icon(Icons.vpn_lock),
+              label: AppStrings.get('vpn'),
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.workspace_premium),
+              label: AppStrings.get('subscription'),
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.settings),
+              label: AppStrings.get('settings'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildVPNView() {
+    final selectedServer =
+        _isConnected ? '${_servers[0]['flag']} ${_servers[0]['name']}' : AppStrings.get('not_connected');
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
           const SizedBox(height: 20),
-          _buildConnectionCard(),
+          _buildConnectionCard(selectedServer),
           const SizedBox(height: 30),
           _buildServerSelector(),
           const SizedBox(height: 20),
           _buildConnectionStats(),
-          const SizedBox(height: 20),
-          _buildProtocolSelector(),
         ],
       ),
     );
   }
 
-  Widget _buildConnectionCard() {
+  Widget _buildConnectionCard(String selectedServer) {
     return Container(
       padding: const EdgeInsets.all(30),
       decoration: BoxDecoration(
@@ -132,7 +184,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
           ),
           const SizedBox(height: 20),
           Text(
-            _isConnected ? 'Connected' : 'Not Connected',
+            _isConnected ? AppStrings.get('connected') : AppStrings.get('not_connected'),
             style: const TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
@@ -141,7 +193,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
           ),
           const SizedBox(height: 10),
           Text(
-            _selectedServer,
+            selectedServer,
             style: const TextStyle(
               fontSize: 16,
               color: Colors.white70,
@@ -166,7 +218,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
                 ),
               ),
               child: Text(
-                _isConnected ? 'Disconnect' : 'Connect',
+                _isConnected ? AppStrings.get('disconnect') : AppStrings.get('connect'),
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -188,9 +240,9 @@ class _VPNHomePageState extends State<VPNHomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Select Server',
-              style: TextStyle(
+            Text(
+              AppStrings.get('select_server'),
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -204,14 +256,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
                   ),
                   title: Text(server['name']),
                   subtitle: Text('${server['city']} • ${server['ping']}'),
-                  trailing: _selectedServer.contains(server['name'])
-                      ? const Icon(Icons.check_circle, color: Colors.green)
-                      : null,
-                  onTap: () {
-                    setState(() {
-                      _selectedServer = '${server['flag']} ${server['name']} - ${server['city']}';
-                    });
-                  },
+                  onTap: () {},
                 )),
           ],
         ),
@@ -230,16 +275,19 @@ class _VPNHomePageState extends State<VPNHomePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildStatItem('Download', _isConnected ? '12.5 MB/s' : '0 MB/s', Icons.download),
-                _buildStatItem('Upload', _isConnected ? '5.2 MB/s' : '0 MB/s', Icons.upload),
+                _buildStatItem(
+                    AppStrings.get('download'),
+                    _isConnected ? '12.5 MB/s' : '0 MB/s',
+                    Icons.download),
+                _buildStatItem(AppStrings.get('upload'), _isConnected ? '5.2 MB/s' : '0 MB/s', Icons.upload),
               ],
             ),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildStatItem('Ping', _isConnected ? '24 ms' : '--', Icons.speed),
-                _buildStatItem('Time', _isConnected ? '02:15:30' : '--:--:--', Icons.timer),
+                _buildStatItem(AppStrings.get('ping'), _isConnected ? '24 ms' : '--', Icons.speed),
+                _buildStatItem(AppStrings.get('time'), _isConnected ? '02:15:30' : '--:--:--', Icons.timer),
               ],
             ),
           ],
@@ -271,35 +319,166 @@ class _VPNHomePageState extends State<VPNHomePage> {
     );
   }
 
-  Widget _buildProtocolSelector() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildSubscriptionView() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                AppStrings.get('v2ray_subs'),
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _showAddSubscriptionDialog(),
+                icon: const Icon(Icons.add),
+                label: Text(AppStrings.get('add_subscription')),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ..._buildSubscriptionList(),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildSubscriptionList() {
+    final subscriptions = [
+      {
+        'name': 'My Subscription 1',
+        'url': 'https://example.com/sub',
+        'active': true,
+        'profile_count': 12,
+      },
+      {
+        'name': 'My Subscription 2',
+        'url': 'https://example.com/sub2',
+        'active': false,
+        'profile_count': 5,
+      },
+    ];
+
+    if (subscriptions.isEmpty) {
+      return [
+        Center(
+          child: Column(
+            children: [
+              Icon(Icons.inbox_outlined, size: 64, color: Colors.grey.shade400),
+              const SizedBox(height: 16),
+              Text(AppStrings.get('no_subscriptions'),
+                  style: TextStyle(color: Colors.grey.shade600)),
+              Text(AppStrings.get('add_first_subscription'),
+                  style: TextStyle(color: Colors.grey.shade400)),
+            ],
+          ),
+        )
+      ];
+    }
+
+    return subscriptions.map((sub) {
+      return Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ListTile(
+          contentPadding: const EdgeInsets.all(16),
+          leading: CircleAvatar(
+            backgroundColor: sub['active'] ? Colors.green : Colors.grey,
+            child: Icon(Icons.cloud, color: Colors.white),
+          ),
+          title: Text(sub['name']),
+          subtitle: Text('${sub['profile_count']} ${AppStrings.get('profile').toLowerCase()}'),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.speed),
+                onPressed: () {},
+              ),
+              IconButton(
+                icon: const Icon(Icons.more_vert),
+                onPressed: () => _showSubscriptionMenu(sub),
+              ),
+            ],
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  void _showAddSubscriptionDialog() {
+    final nameController = TextEditingController();
+    final urlController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(AppStrings.get('add_subscription')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Protocol',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+            TextField(
+              controller: nameController,
+              decoration: InputDecoration(
+                labelText: AppStrings.get('subscription_name'),
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
-            SegmentedButton<String>(
-              segments: _protocols
-                  .map((protocol) => ButtonSegment(
-                        value: protocol,
-                        label: Text(protocol),
-                      ))
-                  .toList(),
-              selected: {_selectedProtocol},
-              onSelectionChanged: (Set<String> newSelection) {
-                setState(() {
-                  _selectedProtocol = newSelection.first;
-                });
+            TextField(
+              controller: urlController,
+              decoration: InputDecoration(
+                labelText: AppStrings.get('subscription_url'),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(AppStrings.get('cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: Text(AppStrings.get('save')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSubscriptionMenu(Map<String, dynamic> subscription) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: Text(AppStrings.get('edit')),
+              onTap: () => Navigator.pop(context),
+            ),
+            ListTile(
+              leading: const Icon(Icons.refresh),
+              title: Text(AppStrings.get('test_connection')),
+              onTap: () => Navigator.pop(context),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: Text(AppStrings.get('delete'), style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                _showDeleteDialog(subscription);
               },
             ),
           ],
@@ -308,165 +487,21 @@ class _VPNHomePageState extends State<VPNHomePage> {
     );
   }
 
-  Widget _buildSubscriptionView() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Choose Your Plan',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
+  void _showDeleteDialog(Map<String, dynamic> subscription) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(AppStrings.get('warning')),
+        content: Text(AppStrings.get('delete_confirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(AppStrings.get('cancel')),
           ),
-          const SizedBox(height: 10),
-          Text(
-            'Upgrade to premium for unlimited access',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade600,
-            ),
-          ),
-          const SizedBox(height: 30),
-          _buildPlanCard('Free', '0', '/month', [
-            '5 servers',
-            'Limited bandwidth',
-            'Best effort speed',
-            'No ads',
-          ], false),
-          const SizedBox(height: 16),
-          _buildPlanCard('Premium', '9.99', '/month', [
-            '100+ servers',
-            'Unlimited bandwidth',
-            'Max speed (10 Gbps)',
-            'No ads',
-            '24/7 support',
-            '5 devices',
-          ], true),
-          const SizedBox(height: 16),
-          _buildPlanCard('Family', '19.99', '/month', [
-            'Everything in Premium',
-            'Unlimited devices',
-            'Family dashboard',
-            'Priority support',
-          ], false),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlanCard(
-    String plan,
-    String price,
-    String period,
-    List<String> features,
-    bool highlighted,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: highlighted ? Colors.blue.shade50 : Colors.white,
-        border: Border.all(
-          color: highlighted ? Colors.blue : Colors.grey.shade300,
-          width: highlighted ? 2 : 1,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: highlighted
-            ? [
-                BoxShadow(
-                  color: Colors.blue.withValues(alpha: 0.2),
-                  blurRadius: 20,
-                  spreadRadius: 5,
-                ),
-              ]
-            : null,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                plan,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: highlighted ? Colors.blue : Colors.black87,
-                ),
-              ),
-              if (highlighted)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.blue,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text(
-                    'Popular',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '\$$price',
-                style: TextStyle(
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  color: highlighted ? Colors.blue : Colors.black87,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                period,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          ...features.map((feature) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.check_circle,
-                      size: 20,
-                      color: highlighted ? Colors.blue : Colors.green,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(feature),
-                  ],
-                ),
-              )),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: highlighted ? Colors.blue : Colors.grey.shade800,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text(highlighted ? 'Get Premium' : 'Select Plan'),
-            ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text(AppStrings.get('delete')),
           ),
         ],
       ),
@@ -478,29 +513,36 @@ class _VPNHomePageState extends State<VPNHomePage> {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          _buildSettingsSection('General', [
+          _buildSettingsSection(AppStrings.get('general'), [
             _buildSettingsTile(
               Icons.language,
-              'Language',
-              'English',
-              () {},
+              AppStrings.get('language'),
+              AppStrings.getLanguageName(_currentLanguage),
+              () => _showLanguageDialog(),
+              trailing: Text(AppStrings.getLanguageName(_currentLanguage),
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
             _buildSettingsTile(
               Icons.dark_mode,
-              'Dark Mode',
-              'Off',
+              AppStrings.get('dark_mode'),
+              _isDarkMode ? 'On' : 'Off',
               () {},
               trailing: Switch(
-                value: false,
-                onChanged: (value) {},
+                value: _isDarkMode,
+                onChanged: (value) {
+                  setState(() {
+                    _isDarkMode = value;
+                  });
+                  _savePreferences();
+                },
               ),
             ),
           ]),
           const SizedBox(height: 20),
-          _buildSettingsSection('Connection', [
+          _buildSettingsSection(AppStrings.get('connection'), [
             _buildSettingsTile(
               Icons.vpn_lock,
-              'Auto-connect on startup',
+              AppStrings.get('auto_connect'),
               'Off',
               () {},
               trailing: Switch(
@@ -510,7 +552,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
             ),
             _buildSettingsTile(
               Icons.network_check,
-              'Kill Switch',
+              AppStrings.get('kill_switch'),
               'On',
               () {},
               trailing: Switch(
@@ -520,37 +562,37 @@ class _VPNHomePageState extends State<VPNHomePage> {
             ),
           ]),
           const SizedBox(height: 20),
-          _buildSettingsSection('Account', [
+          _buildSettingsSection(AppStrings.get('account'), [
             _buildSettingsTile(
               Icons.email,
-              'Email',
+              AppStrings.get('email'),
               'user@example.com',
               () {},
             ),
             _buildSettingsTile(
               Icons.password,
-              'Change Password',
+              AppStrings.get('change_password'),
               '',
               () {},
             ),
           ]),
           const SizedBox(height: 20),
-          _buildSettingsSection('About', [
+          _buildSettingsSection(AppStrings.get('about'), [
             _buildSettingsTile(
               Icons.info,
-              'Version',
-              '1.0.0',
+              AppStrings.get('version'),
+              '1.0.1',
               () {},
             ),
             _buildSettingsTile(
               Icons.description,
-              'Privacy Policy',
+              AppStrings.get('privacy_policy'),
               '',
               () {},
             ),
             _buildSettingsTile(
               Icons.article,
-              'Terms of Service',
+              AppStrings.get('terms_of_service'),
               '',
               () {},
             ),
@@ -568,7 +610,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text('Sign Out'),
+              child: Text(AppStrings.get('sign_out')),
             ),
           ),
         ],
@@ -617,6 +659,33 @@ class _VPNHomePageState extends State<VPNHomePage> {
             color: Colors.grey,
           ),
       onTap: onTap,
+    );
+  }
+
+  void _showLanguageDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(AppStrings.get('language')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: AppStrings.supportedLanguages.map((lang) {
+            return RadioListTile<String>(
+              title: Text(AppStrings.getLanguageName(lang)),
+              value: lang,
+              groupValue: _currentLanguage,
+              onChanged: (value) {
+                setState(() {
+                  _currentLanguage = value!;
+                  AppStrings.setLanguage(_currentLanguage);
+                });
+                _savePreferences();
+                Navigator.pop(context);
+              },
+            );
+          }).toList(),
+        ),
+      ),
     );
   }
 }
