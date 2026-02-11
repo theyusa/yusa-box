@@ -1,0 +1,35 @@
+# Agent metadata
+.agent/
+
+# Flutter
+.DS_Store
+.dart_tool/
+.packages
+.pub/
+build/
+android/app/libs/libcore.aar
+
+# iOS
+ios/Flutter/Generated.xcconfig
+ios/Flutter/app.flx
+ios/Flutter/app.zip
+ios/Flutter/flutter_assets/
+ios/ServiceDefinitions.json
+ios/Runner/GeneratedPluginRegistrant.*
+
+# Android
+android/gradle/
+android/gradle/wrapper/gradle-wrapper.properties
+android/local.properties
+android/.gradle
+android/captures/
+android/gradlew
+android/gradlew.bat
+
+# Flutter Plugins
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# IntelliJ
+.idea/
+*.iml
