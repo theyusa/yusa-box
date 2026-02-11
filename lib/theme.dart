@@ -20,6 +20,7 @@ class AppTheme {
     cardTheme: CardThemeData(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: _lightColorScheme.surface,
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
@@ -39,7 +40,7 @@ class AppTheme {
       foregroundColor: _lightColorScheme.onSurface,
     ),
     dialogTheme: DialogThemeData(
-      backgroundColor: _darkColorScheme.surface,
+      backgroundColor: _lightColorScheme.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
     ),
   );
@@ -71,7 +72,7 @@ class AppTheme {
       foregroundColor: _darkColorScheme.onSurface,
     ),
     dialogTheme: DialogThemeData(
-      backgroundColor: _lightColorScheme.surface,
+      backgroundColor: _darkColorScheme.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
     ),
   );

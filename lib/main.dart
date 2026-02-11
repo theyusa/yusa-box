@@ -426,12 +426,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
               color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(width: 12),
-            Text(
-              AppStrings.get('add_subscription'),
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
+            Text(AppStrings.get('add_subscription')),
           ],
         ),
         content: Column(
@@ -444,6 +439,18 @@ class _VPNHomePageState extends State<VPNHomePage> {
                 prefixIcon: const Icon(Icons.bookmark),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                    width: 2,
+                  ),
                 ),
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -457,6 +464,18 @@ class _VPNHomePageState extends State<VPNHomePage> {
                 prefixIcon: const Icon(Icons.link),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                    width: 2,
+                  ),
                 ),
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -563,7 +582,10 @@ class _VPNHomePageState extends State<VPNHomePage> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
             child: Text(AppStrings.get('delete')),
           ),
         ],
@@ -759,11 +781,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
       leading: Icon(icon),
       title: Text(title),
       subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
-      trailing: trailing ??
-          const Icon(
-            Icons.chevron_right,
-            color: Colors.grey,
-          ),
+      trailing: trailing,
       onTap: onTap,
     );
   }
