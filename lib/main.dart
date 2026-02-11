@@ -785,22 +785,24 @@ class _VPNHomePageState extends State<VPNHomePage> {
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: AppStrings.supportedLanguages.map((lang) {
-            return ListTile(
-              title: Text(AppStrings.getLanguageName(lang)),
-              trailing: _currentLanguage == lang
-                  ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
-                  : null,
-              onTap: () {
-                setState(() {
-                  _currentLanguage = lang;
-                  AppStrings.setLanguage(_currentLanguage);
-                });
-                _savePreferences();
-                Navigator.pop(context);
-              },
-            );
-          }),
+          children: [
+            ...AppStrings.supportedLanguages.map((lang) {
+              return ListTile(
+                title: Text(AppStrings.getLanguageName(lang)),
+                trailing: _currentLanguage == lang
+                    ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
+                    : null,
+                onTap: () {
+                  setState(() {
+                    _currentLanguage = lang;
+                    AppStrings.setLanguage(_currentLanguage);
+                  });
+                  _savePreferences();
+                  Navigator.pop(context);
+                },
+              );
+            }),
+          ],
         ),
       ),
     );
