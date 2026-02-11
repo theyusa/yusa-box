@@ -38,6 +38,10 @@ class AppTheme {
       backgroundColor: _lightColorScheme.surface,
       foregroundColor: _lightColorScheme.onSurface,
     ),
+    dialogTheme: DialogTheme(
+      backgroundColor: _lightColorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+    ),
   );
 
   static ThemeData darkTheme = ThemeData(
@@ -65,6 +69,10 @@ class AppTheme {
       elevation: 0,
       backgroundColor: _darkColorScheme.surface,
       foregroundColor: _darkColorScheme.onSurface,
+    ),
+    dialogTheme: DialogTheme(
+      backgroundColor: _darkColorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
     ),
   );
 }

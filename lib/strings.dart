@@ -6,7 +6,7 @@ class AppStrings {
 
   static final Map<String, Map<String, String>> _strings = {
     tr: {
-      'app_title': 'YusaBox VPN',
+      'app_title': 'YusaBox',
       'vpn': 'VPN',
       'subscription': 'Abonelik',
       'settings': 'Ayarlar',
@@ -93,7 +93,7 @@ class AppStrings {
       'shadowsocks': 'Shadowsocks',
     },
     en: {
-      'app_title': 'YusaBox VPN',
+      'app_title': 'YusaBox',
       'vpn': 'VPN',
       'subscription': 'Subscription',
       'settings': 'Settings',

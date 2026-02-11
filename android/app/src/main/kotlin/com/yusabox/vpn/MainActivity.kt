@@ -1,4 +1,4 @@
-package com.yusabox.yusa_box
+package com.yusabox.vpn
 
 import io.flutter.embedding.android.FlutterActivity
 
