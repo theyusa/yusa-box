@@ -556,7 +556,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, bottom: 12),
+                padding: const EdgeInsets.only(left: 20, right: 20, bottom: 12),
                 child: Text(
                   subscription['name'] as String,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -944,7 +944,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
                     },
                   ),
                 );
-              }).toList(),
+              }),
             ],
           ),
         ),

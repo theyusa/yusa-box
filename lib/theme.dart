@@ -38,8 +38,8 @@ class AppTheme {
       backgroundColor: _lightColorScheme.surface,
       foregroundColor: _lightColorScheme.onSurface,
     ),
-    dialogTheme: DialogTheme(
-      backgroundColor: _lightColorScheme.surface,
+    dialogTheme: DialogThemeData(
+      backgroundColor: _darkColorScheme.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
     ),
   );
@@ -70,8 +70,8 @@ class AppTheme {
       backgroundColor: _darkColorScheme.surface,
       foregroundColor: _darkColorScheme.onSurface,
     ),
-    dialogTheme: DialogTheme(
-      backgroundColor: _darkColorScheme.surface,
+    dialogTheme: DialogThemeData(
+      backgroundColor: _lightColorScheme.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
     ),
   );
