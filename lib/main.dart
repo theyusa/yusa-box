@@ -117,7 +117,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: (_isConnected ? Colors.green : Colors.grey).withOpacity(0.3),
+            color: (_isConnected ? Colors.green : Colors.grey).withValues(alpha: 0.3),
             blurRadius: 20,
             spreadRadius: 5,
           ),
@@ -126,7 +126,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
       child: Column(
         children: [
           Icon(
-            _isConnected ? Icons.shield_check_rounded : Icons.shield_outline_rounded,
+            _isConnected ? Icons.security_rounded : Icons.security_outlined,
             size: 80,
             color: Colors.white,
           ),
@@ -376,7 +376,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
         boxShadow: highlighted
             ? [
                 BoxShadow(
-                  color: Colors.blue.withOpacity(0.2),
+                  color: Colors.blue.withValues(alpha: 0.2),
                   blurRadius: 20,
                   spreadRadius: 5,
                 ),
