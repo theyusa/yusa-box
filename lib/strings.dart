@@ -1,12 +1,10 @@
-import 'package:flutter/material.dart';
-
 class AppStrings {
   const AppStrings._();
 
   static const String tr = 'tr';
   static const String en = 'en';
 
-  static Map<String, Map<String, String>> _strings = {
+  static final Map<String, Map<String, String>> _strings = {
     tr: {
       'app_title': 'YusaBox VPN',
       'vpn': 'VPN',
@@ -51,7 +49,6 @@ class AppStrings {
       'inactive': 'Pasif',
       'profile': 'Profil',
       'profile_name': 'Profil Adı',
-      'subscription': 'Abonelik',
       'save': 'Kaydet',
       'cancel': 'İptal',
       'delete': 'Sil',
@@ -120,7 +117,6 @@ class AppStrings {
       'inactive': 'Inactive',
       'profile': 'Profile',
       'profile_name': 'Profile Name',
-      'subscription': 'Subscription',
       'save': 'Save',
       'cancel': 'Cancel',
       'delete': 'Delete',

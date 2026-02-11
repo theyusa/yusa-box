@@ -17,7 +17,7 @@ class AppTheme {
     colorScheme: _lightColorScheme,
     useMaterial3: true,
     scaffoldBackgroundColor: _lightColorScheme.surface,
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
@@ -44,7 +44,7 @@ class AppTheme {
     colorScheme: _darkColorScheme,
     useMaterial3: true,
     scaffoldBackgroundColor: _darkColorScheme.surface,
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       color: _darkColorScheme.surfaceContainerHighest,

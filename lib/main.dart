@@ -389,10 +389,10 @@ class _VPNHomePageState extends State<VPNHomePage> {
         child: ListTile(
           contentPadding: const EdgeInsets.all(16),
           leading: CircleAvatar(
-            backgroundColor: sub['active'] ? Colors.green : Colors.grey,
-            child: Icon(Icons.cloud, color: Colors.white),
+            backgroundColor: sub['active'] == true ? Colors.green : Colors.grey,
+            child: const Icon(Icons.cloud, color: Colors.white),
           ),
-          title: Text(sub['name']),
+          title: Text(sub['name'] as String),
           subtitle: Text('${sub['profile_count']} ${AppStrings.get('profile').toLowerCase()}'),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
@@ -670,13 +670,14 @@ class _VPNHomePageState extends State<VPNHomePage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: AppStrings.supportedLanguages.map((lang) {
-            return RadioListTile<String>(
+            return ListTile(
               title: Text(AppStrings.getLanguageName(lang)),
-              value: lang,
-              groupValue: _currentLanguage,
-              onChanged: (value) {
+              trailing: _currentLanguage == lang
+                  ? const Icon(Icons.check, color: Colors.green)
+                  : null,
+              onTap: () {
                 setState(() {
-                  _currentLanguage = value!;
+                  _currentLanguage = lang;
                   AppStrings.setLanguage(_currentLanguage);
                 });
                 _savePreferences();
