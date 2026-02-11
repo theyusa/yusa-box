@@ -1,71 +1,105 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dynamic_color/dynamic_color.dart';
 import 'strings.dart';
-import 'theme.dart';
+import 'utils/theme_generator.dart';
+import 'providers/theme_provider.dart';
 
+/// Main entry point of the application
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize SharedPreferences for language settings
   final prefs = await SharedPreferences.getInstance();
-  final isDarkMode = prefs.getBool('darkMode') ?? false;
   final language = prefs.getString('language') ?? AppStrings.tr;
 
   if (AppStrings.supportedLanguages.contains(language)) {
     AppStrings.setLanguage(language);
   }
 
-  runApp(MyApp(
-    isDarkMode: isDarkMode,
-    language: language,
-  ));
+  runApp(
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
 }
 
-class MyApp extends StatefulWidget {
-  final bool isDarkMode;
-  final String language;
-
-  const MyApp({
-    super.key,
-    required this.isDarkMode,
-    required this.language,
-  });
+/// Root widget of the application
+class MyApp extends ConsumerWidget {
+  const MyApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeState = ref.watch(themeProvider);
+    final themeMode = themeState.themeMode.toThemeMode();
 
-class _MyAppState extends State<MyApp> {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: AppStrings.get('app_title'),
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: widget.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      home: const VPNHomePage(),
+    return DynamicColorBuilder(
+      builder: (lightDynamic, darkDynamic) {
+        // Generate color schemes
+        ColorScheme lightScheme;
+        ColorScheme darkScheme;
+
+        if (themeState.isDynamicColorEnabled && lightDynamic != null && darkDynamic != null) {
+          // Use dynamic color (Monet) with contrast level
+          lightScheme = lightDynamic.harmonized().withContrast(themeState.contrastLevel);
+          darkScheme = darkDynamic.harmonized().withContrast(themeState.contrastLevel);
+        } else {
+          // Use seed color with contrast level
+          lightScheme = ColorScheme.fromSeed(
+            seedColor: themeState.seedColor,
+            brightness: Brightness.light,
+            contrastLevel: themeState.contrastLevel,
+          );
+          darkScheme = ColorScheme.fromSeed(
+            seedColor: themeState.seedColor,
+            brightness: Brightness.dark,
+            contrastLevel: themeState.contrastLevel,
+          );
+        }
+
+        // Apply true black (OLED) mode if enabled and in dark theme
+        final surfaceColor = themeState.isTrueBlackEnabled
+            ? const Color(0xFF000000)
+            : darkScheme.surface;
+
+        final darkSchemeModified = themeState.isTrueBlackEnabled
+            ? darkScheme.copyWith(
+                surface: surfaceColor,
+                scaffoldBackgroundColor: surfaceColor,
+              )
+            : darkScheme;
+
+        return MaterialApp(
+          title: AppStrings.get('app_title'),
+          theme: ThemeGenerator.generateLightTheme(
+            lightColorScheme: lightScheme,
+            isDynamicColorEnabled: themeState.isDynamicColorEnabled,
+          ),
+          darkTheme: ThemeGenerator.generateDarkTheme(
+            darkColorScheme: darkSchemeModified,
+            isTrueBlackEnabled: themeState.isTrueBlackEnabled,
+            isDynamicColorEnabled: themeState.isDynamicColorEnabled,
+          ),
+          themeMode: themeMode,
+          home: const VPNHomePage(),
+        );
+      },
     );
   }
 }
 
-class VPNHomePage extends StatefulWidget {
+/// VPN HomePage - Main application screen
+class VPNHomePage extends ConsumerStatefulWidget {
   const VPNHomePage({super.key});
 
   @override
-  State<VPNHomePage> createState() => _VPNHomePageState();
+  ConsumerState<VPNHomePage> createState() => _VPNHomePageState();
 }
 
-class _VPNHomePageState extends State<VPNHomePage> {
+class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   bool _isConnected = false;
   int _currentIndex = 0;
-  bool _isDarkMode = false;
   String _currentLanguage = AppStrings.tr;
-
-  final List<Map<String, dynamic>> _servers = [
-    {'flag': '🇺🇸', 'name': 'United States', 'city': 'New York', 'ping': '24ms'},
-    {'flag': '🇬🇧', 'name': 'United Kingdom', 'city': 'London', 'ping': '32ms'},
-    {'flag': '🇩🇪', 'name': 'Germany', 'city': 'Frankfurt', 'ping': '28ms'},
-    {'flag': '🇳🇱', 'name': 'Netherlands', 'city': 'Amsterdam', 'ping': '30ms'},
-    {'flag': '🇯🇵', 'name': 'Japan', 'city': 'Tokyo', 'ping': '85ms'},
-  ];
 
   @override
   void initState() {
@@ -75,69 +109,68 @@ class _VPNHomePageState extends State<VPNHomePage> {
 
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _isDarkMode = prefs.getBool('darkMode') ?? false;
-      _currentLanguage = prefs.getString('language') ?? AppStrings.tr;
-      AppStrings.setLanguage(_currentLanguage);
-    });
+    final language = prefs.getString('language') ?? AppStrings.tr;
+
+    if (mounted) {
+      setState(() {
+        _currentLanguage = language;
+        AppStrings.setLanguage(language);
+      });
+    }
   }
 
   Future<void> _savePreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('darkMode', _isDarkMode);
     await prefs.setString('language', _currentLanguage);
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: AppStrings.get('app_title'),
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      home: Scaffold(
-        appBar: AppBar(
-          title: Text(AppStrings.get('app_title')),
-          centerTitle: true,
-          elevation: 0,
-        ),
-        body: IndexedStack(
-          index: _currentIndex,
-          children: [
-            _buildVPNView(),
-            _buildSubscriptionView(),
-            _buildSettingsView(),
-          ],
-        ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _currentIndex,
-          onDestinationSelected: (index) {
-            setState(() {
-              _currentIndex = index;
-            });
-          },
-          destinations: [
-            NavigationDestination(
-              icon: const Icon(Icons.vpn_lock),
-              label: AppStrings.get('vpn'),
-            ),
-            NavigationDestination(
-              icon: const Icon(Icons.workspace_premium),
-              label: AppStrings.get('subscription'),
-            ),
-            NavigationDestination(
-              icon: const Icon(Icons.settings),
-              label: AppStrings.get('settings'),
-            ),
-          ],
-        ),
+    final themeState = ref.watch(themeProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(AppStrings.get('app_title')),
+        centerTitle: true,
+        elevation: 0,
+      ),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          _buildVPNView(),
+          _buildSubscriptionView(),
+          _buildSettingsView(themeState),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        destinations: [
+          NavigationDestination(
+            icon: const Icon(Icons.vpn_lock),
+            label: AppStrings.get('vpn'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.workspace_premium),
+            label: AppStrings.get('subscription'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.settings),
+            label: AppStrings.get('settings'),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildVPNView() {
-    final selectedServer =
-        _isConnected ? '${_servers[0]['flag']} ${_servers[0]['name']}' : AppStrings.get('not_connected');
+    final selectedServer = _isConnected
+        ? '🇺🇸 United States'
+        : AppStrings.get('not_connected');
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -231,6 +264,12 @@ class _VPNHomePageState extends State<VPNHomePage> {
   }
 
   Widget _buildServerSelector() {
+    final servers = [
+      {'flag': '🇺🇸', 'name': 'United States', 'city': 'New York', 'ping': '24ms'},
+      {'flag': '🇬🇧', 'name': 'United Kingdom', 'city': 'London', 'ping': '32ms'},
+      {'flag': '🇩🇪', 'name': 'Germany', 'city': 'Frankfurt', 'ping': '28ms'},
+    ];
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -247,7 +286,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
               ),
             ),
             const SizedBox(height: 16),
-            ..._servers.map((server) => ListTile(
+            ...servers.map((server) => ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: Text(
                     server['flag'],
@@ -274,10 +313,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildStatItem(
-                    AppStrings.get('download'),
-                    _isConnected ? '12.5 MB/s' : '0 MB/s',
-                    Icons.download),
+                _buildStatItem(AppStrings.get('download'), _isConnected ? '12.5 MB/s' : '0 MB/s', Icons.download),
                 _buildStatItem(AppStrings.get('upload'), _isConnected ? '5.2 MB/s' : '0 MB/s', Icons.upload),
               ],
             ),
@@ -355,12 +391,6 @@ class _VPNHomePageState extends State<VPNHomePage> {
         'active': true,
         'profile_count': 12,
       },
-      {
-        'name': 'My Subscription 2',
-        'url': 'https://example.com/sub2',
-        'active': false,
-        'profile_count': 5,
-      },
     ];
 
     if (subscriptions.isEmpty) {
@@ -372,8 +402,6 @@ class _VPNHomePageState extends State<VPNHomePage> {
               const SizedBox(height: 16),
               Text(AppStrings.get('no_subscriptions'),
                   style: TextStyle(color: Colors.grey.shade600)),
-              Text(AppStrings.get('add_first_subscription'),
-                  style: TextStyle(color: Colors.grey.shade400)),
             ],
           ),
         )
@@ -393,18 +421,9 @@ class _VPNHomePageState extends State<VPNHomePage> {
           ),
           title: Text(sub['name'] as String),
           subtitle: Text('${sub['profile_count']} ${AppStrings.get('profile').toLowerCase()}'),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.speed),
-                onPressed: () {},
-              ),
-              IconButton(
-                icon: const Icon(Icons.more_vert),
-                onPressed: () => _showSubscriptionMenu(sub),
-              ),
-            ],
+          trailing: IconButton(
+            icon: const Icon(Icons.more_vert),
+            onPressed: () => _showSubscriptionMenu(sub),
           ),
         ),
       );
@@ -421,10 +440,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Row(
           children: [
-            Icon(
-              Icons.add_circle_outline,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+            Icon(Icons.add_circle_outline, color: Theme.of(context).colorScheme.primary),
             const SizedBox(width: 12),
             Text(AppStrings.get('add_subscription')),
           ],
@@ -489,9 +505,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
             child: Text(AppStrings.get('cancel')),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
+            onPressed: () => Navigator.pop(context),
             child: Text(AppStrings.get('save')),
           ),
         ],
@@ -534,18 +548,12 @@ class _VPNHomePageState extends State<VPNHomePage> {
                 color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
               ),
               ListTile(
-                leading: Icon(
-                  Icons.edit,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+                leading: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
                 title: Text(AppStrings.get('edit')),
                 onTap: () => Navigator.pop(context),
               ),
               ListTile(
-                leading: Icon(
-                  Icons.refresh,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+                leading: Icon(Icons.refresh, color: Theme.of(context).colorScheme.primary),
                 title: Text(AppStrings.get('test_connection')),
                 onTap: () => Navigator.pop(context),
               ),
@@ -593,7 +601,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
     );
   }
 
-  Widget _buildSettingsView() {
+  Widget _buildSettingsView(ThemeState themeState) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -610,16 +618,59 @@ class _VPNHomePageState extends State<VPNHomePage> {
             _buildSettingsTile(
               Icons.dark_mode,
               AppStrings.get('dark_mode'),
-              _isDarkMode ? 'On' : 'Off',
-              () {},
+              themeState.themeMode.name,
+              () => _showThemeModeDialog(),
+              trailing: Icon(
+                _getThemeModeIcon(themeState.themeMode),
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ]),
+          const SizedBox(height: 20),
+          _buildSettingsSection('Theme', [
+            _buildSettingsTile(
+              Icons.palette,
+              'Dynamic Color',
+              themeState.isDynamicColorEnabled ? 'On' : 'Off',
+              () => ref.read(themeProvider.notifier).toggleDynamicColor(),
               trailing: Switch(
-                value: _isDarkMode,
-                onChanged: (value) {
-                  setState(() {
-                    _isDarkMode = value;
-                  });
-                  _savePreferences();
-                },
+                value: themeState.isDynamicColorEnabled,
+                onChanged: (_) => ref.read(themeProvider.notifier).toggleDynamicColor(),
+              ),
+            ),
+            if (!themeState.isDynamicColorEnabled)
+              _buildSettingsTile(
+                Icons.color_lens,
+                'Seed Color',
+                '',
+                () => _showSeedColorDialog(themeState),
+                trailing: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: themeState.seedColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            _buildSettingsTile(
+              Icons.contrast,
+              'True Black (OLED)',
+              themeState.isTrueBlackEnabled ? 'On' : 'Off',
+              () => ref.read(themeProvider.notifier).toggleTrueBlack(),
+              trailing: Switch(
+                value: themeState.isTrueBlackEnabled,
+                onChanged: (_) => ref.read(themeProvider.notifier).toggleTrueBlack(),
+              ),
+            ),
+            _buildSettingsTile(
+              Icons.accessibility,
+              'High Contrast',
+              themeState.contrastLevel > 0 ? 'On' : 'Off',
+              () => ref.read(themeProvider.notifier).toggleContrastMode(),
+              trailing: Switch(
+                value: themeState.contrastLevel > 0,
+                onChanged: (_) => ref.read(themeProvider.notifier).toggleContrastMode(),
               ),
             ),
           ]),
@@ -630,94 +681,14 @@ class _VPNHomePageState extends State<VPNHomePage> {
               AppStrings.get('auto_connect'),
               'Off',
               () {},
-              trailing: Switch(
-                value: false,
-                onChanged: (value) {},
-              ),
+              trailing: Switch(value: false, onChanged: (_) {}),
             ),
             _buildSettingsTile(
               Icons.network_check,
               AppStrings.get('kill_switch'),
               'On',
               () {},
-              trailing: Switch(
-                value: true,
-                onChanged: (value) {},
-              ),
-            ),
-          ]),
-          const SizedBox(height: 20),
-          _buildSettingsSection(AppStrings.get('v2ray_config'), [
-            _buildSettingsTile(
-              Icons.dns,
-              AppStrings.get('dns_servers'),
-              '',
-              () {},
-            ),
-            _buildSettingsTile(
-              Icons.route,
-              AppStrings.get('routing_rules'),
-              '',
-              () {},
-            ),
-            _buildSettingsTile(
-              Icons.block,
-              AppStrings.get('block_ads'),
-              'Off',
-              () {},
-              trailing: Switch(
-                value: false,
-                onChanged: (value) {},
-              ),
-            ),
-          ]),
-          const SizedBox(height: 20),
-          _buildSettingsSection(AppStrings.get('singbox_config'), [
-            _buildSettingsTile(
-              Icons.speed,
-              AppStrings.get('tcp_fast_open'),
-              'On',
-              () {},
-              trailing: Switch(
-                value: true,
-                onChanged: (value) {},
-              ),
-            ),
-            _buildSettingsTile(
-              Icons.call_merge,
-              AppStrings.get('multiplex'),
-              'Off',
-              () {},
-              trailing: Switch(
-                value: false,
-                onChanged: (value) {},
-              ),
-            ),
-            _buildSettingsTile(
-              Icons.visibility,
-              AppStrings.get('sniffing'),
-              'On',
-              () {},
-              trailing: Switch(
-                value: true,
-                onChanged: (value) {},
-              ),
-            ),
-            _buildSettingsTile(
-              Icons.swap_horiz,
-              AppStrings.get('udp_relay'),
-              'On',
-              () {},
-              trailing: Switch(
-                value: true,
-                onChanged: (value) {},
-              ),
-            ),
-            _buildSettingsTile(
-              Icons.timer,
-              AppStrings.get('connection_timeout'),
-              '30s',
-              () {},
+              trailing: Switch(value: true, onChanged: (_) {}),
             ),
           ]),
           const SizedBox(height: 20),
@@ -728,20 +699,126 @@ class _VPNHomePageState extends State<VPNHomePage> {
               '1.0.1',
               () {},
             ),
-            _buildSettingsTile(
-              Icons.description,
-              AppStrings.get('privacy_policy'),
-              '',
-              () {},
-            ),
-            _buildSettingsTile(
-              Icons.article,
-              AppStrings.get('terms_of_service'),
-              '',
-              () {},
-            ),
           ]),
         ],
+      ),
+    );
+  }
+
+  IconData _getThemeModeIcon(AppThemeMode mode) {
+    switch (mode) {
+      case AppThemeMode.system:
+        return Icons.brightness_auto;
+      case AppThemeMode.light:
+        return Icons.light_mode;
+      case AppThemeMode.dark:
+        return Icons.dark_mode;
+    }
+  }
+
+  void _showThemeModeDialog() {
+    final themeState = ref.read(themeProvider);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('Theme Mode'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: AppThemeMode.values.map((mode) {
+            return ListTile(
+              title: Text(mode.name.capitalize()),
+              leading: Icon(_getThemeModeIcon(mode)),
+              trailing: themeState.themeMode == mode
+                  ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
+                  : null,
+              onTap: () {
+                ref.read(themeProvider.notifier).setThemeMode(mode);
+                Navigator.pop(context);
+              },
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  void _showSeedColorDialog(ThemeState themeState) {
+    final selectedColor = themeState.seedColor;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('Select Seed Color'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: GridView.builder(
+            shrinkWrap: true,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 5,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+            ),
+            itemCount: _seedColors.length,
+            itemBuilder: (context, index) {
+              final color = _seedColors[index];
+              return GestureDetector(
+                onTap: () {
+                  ref.read(themeProvider.notifier).setSeedColor(color);
+                  Navigator.pop(context);
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: selectedColor == color
+                        ? Border.all(color: Colors.white, width: 3)
+                        : null,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showLanguageDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            Icon(Icons.language_outlined, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 12),
+            Text(AppStrings.get('language')),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ...AppStrings.supportedLanguages.map((lang) {
+              return ListTile(
+                title: Text(AppStrings.getLanguageName(lang)),
+                trailing: _currentLanguage == lang
+                    ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
+                    : null,
+                onTap: () {
+                  setState(() {
+                    _currentLanguage = lang;
+                    AppStrings.setLanguage(lang);
+                  });
+                  _savePreferences();
+                  Navigator.pop(context);
+                },
+              );
+            }),
+          ],
+        ),
       ),
     );
   }
@@ -786,43 +863,31 @@ class _VPNHomePageState extends State<VPNHomePage> {
     );
   }
 
-  void _showLanguageDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Row(
-          children: [
-            Icon(
-              Icons.language_outlined,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(width: 12),
-            Text(AppStrings.get('language')),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ...AppStrings.supportedLanguages.map((lang) {
-              return ListTile(
-                title: Text(AppStrings.getLanguageName(lang)),
-                trailing: _currentLanguage == lang
-                    ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
-                    : null,
-                onTap: () {
-                  setState(() {
-                    _currentLanguage = lang;
-                    AppStrings.setLanguage(_currentLanguage);
-                  });
-                  _savePreferences();
-                  Navigator.pop(context);
-                },
-              );
-            }),
-          ],
-        ),
-      ),
-    );
+  static const List<Color> _seedColors = [
+    Colors.red,
+    Colors.pink,
+    Colors.purple,
+    Colors.deepPurple,
+    Colors.indigo,
+    Colors.blue,
+    Colors.lightBlue,
+    Colors.cyan,
+    Colors.teal,
+    Colors.green,
+    Colors.lightGreen,
+    Colors.lime,
+    Colors.yellow,
+    Colors.amber,
+    Colors.orange,
+    Colors.deepOrange,
+    Colors.brown,
+    Colors.grey,
+  ];
+}
+
+extension StringExtension on String {
+  String capitalize() {
+    if (isEmpty) return this;
+    return this[0].toUpperCase() + substring(1);
   }
 }
