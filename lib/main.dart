@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dynamic_color/dynamic_color.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'strings.dart';
-import 'utils/theme_generator.dart';
 import 'providers/theme_provider.dart';
 
-/// Main entry point of the application
+/// Main entry point of application
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -24,7 +24,7 @@ void main() async {
   );
 }
 
-/// Root widget of the application
+/// Root widget of application
 class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
@@ -39,10 +39,24 @@ class MyApp extends ConsumerWidget {
         ColorScheme lightScheme;
         ColorScheme darkScheme;
 
-        if (themeState.isDynamicColorEnabled && lightDynamic != null && darkDynamic != null) {
+        // Check if dynamic color is available and enabled
+        final useDynamicColor = themeState.isDynamicColorEnabled &&
+            lightDynamic != null &&
+            darkDynamic != null;
+
+        if (useDynamicColor) {
           // Use dynamic color (Monet) with contrast level
-          lightScheme = lightDynamic.harmonized().withContrast(themeState.contrastLevel);
-          darkScheme = darkDynamic.harmonized().withContrast(themeState.contrastLevel);
+          lightScheme = ColorScheme.fromCorePalette(
+            lightDynamic!,
+            brightness: Brightness.light,
+            contrastLevel: themeState.contrastLevel,
+          );
+
+          darkScheme = ColorScheme.fromCorePalette(
+            darkDynamic!,
+            brightness: Brightness.dark,
+            contrastLevel: themeState.contrastLevel,
+          );
         } else {
           // Use seed color with contrast level
           lightScheme = ColorScheme.fromSeed(
@@ -50,6 +64,7 @@ class MyApp extends ConsumerWidget {
             brightness: Brightness.light,
             contrastLevel: themeState.contrastLevel,
           );
+
           darkScheme = ColorScheme.fromSeed(
             seedColor: themeState.seedColor,
             brightness: Brightness.dark,
@@ -57,33 +72,147 @@ class MyApp extends ConsumerWidget {
           );
         }
 
-        // Apply true black (OLED) mode if enabled and in dark theme
-        final surfaceColor = themeState.isTrueBlackEnabled
-            ? const Color(0xFF000000)
-            : darkScheme.surface;
-
-        final darkSchemeModified = themeState.isTrueBlackEnabled
-            ? darkScheme.copyWith(
-                surface: surfaceColor,
-                scaffoldBackgroundColor: surfaceColor,
-              )
-            : darkScheme;
+        // Apply true black (OLED) mode if enabled
+        final darkSchemeModified = _applyTrueBlackIfEnabled(
+          darkScheme,
+          themeState.isTrueBlackEnabled,
+        );
 
         return MaterialApp(
           title: AppStrings.get('app_title'),
-          theme: ThemeGenerator.generateLightTheme(
-            lightColorScheme: lightScheme,
-            isDynamicColorEnabled: themeState.isDynamicColorEnabled,
-          ),
-          darkTheme: ThemeGenerator.generateDarkTheme(
-            darkColorScheme: darkSchemeModified,
-            isTrueBlackEnabled: themeState.isTrueBlackEnabled,
-            isDynamicColorEnabled: themeState.isDynamicColorEnabled,
-          ),
+          theme: _buildLightTheme(lightScheme),
+          darkTheme: _buildDarkTheme(darkSchemeModified),
           themeMode: themeMode,
           home: const VPNHomePage(),
         );
       },
+    );
+  }
+
+  /// Build light theme data
+  ThemeData _buildLightTheme(ColorScheme colorScheme) {
+    return ThemeData(
+      colorScheme: colorScheme,
+      useMaterial3: true,
+      scaffoldBackgroundColor: colorScheme.surface,
+      cardTheme: CardThemeData(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: colorScheme.surface,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+      appBarTheme: AppBarTheme(
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: colorScheme.surfaceContainerHighest,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.outline),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.outline),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: colorScheme.primary,
+            width: 2,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build dark theme data with support for true black (OLED) mode
+  ThemeData _buildDarkTheme(ColorScheme colorScheme) {
+    return ThemeData(
+      colorScheme: colorScheme,
+      useMaterial3: true,
+      scaffoldBackgroundColor: colorScheme.surface,
+      cardTheme: CardThemeData(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: colorScheme.surfaceContainerHighest,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+      appBarTheme: AppBarTheme(
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: colorScheme.surfaceContainerHighest,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.outline),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.outline),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: colorScheme.primary,
+            width: 2,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Apply true black (OLED) override if enabled
+  ///
+  /// When true black is enabled, overrides surface and scaffoldBackgroundColor
+  /// to pure black (0xFF000000) for OLED displays.
+  ColorScheme _applyTrueBlackIfEnabled(
+    ColorScheme darkScheme,
+    bool isEnabled,
+  ) {
+    if (!isEnabled) {
+      return darkScheme;
+    }
+
+    // Override surface colors with pure black
+    return darkScheme.copyWith(
+      surface: const Color(0xFF000000),
+      scaffoldBackgroundColor: const Color(0xFF000000),
     );
   }
 }
@@ -292,7 +421,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                     server['flag'],
                     style: const TextStyle(fontSize: 24),
                   ),
-                  title: Text(server['name']),
+                  title: Text(server['name'] ?? ''),
                   subtitle: Text('${server['city']} • ${server['ping']}'),
                   onTap: () {},
                 )),
@@ -313,8 +442,10 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildStatItem(AppStrings.get('download'), _isConnected ? '12.5 MB/s' : '0 MB/s', Icons.download),
-                _buildStatItem(AppStrings.get('upload'), _isConnected ? '5.2 MB/s' : '0 MB/s', Icons.upload),
+                _buildStatItem(AppStrings.get('download'),
+                    _isConnected ? '12.5 MB/s' : '0 MB/s', Icons.download),
+                _buildStatItem(
+                    AppStrings.get('upload'), _isConnected ? '5.2 MB/s' : '0 MB/s', Icons.upload),
               ],
             ),
             const SizedBox(height: 16),
@@ -419,7 +550,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             backgroundColor: sub['active'] == true ? Colors.green : Colors.grey,
             child: const Icon(Icons.cloud, color: Colors.white),
           ),
-          title: Text(sub['name'] as String),
+          title: Text(sub['name'] as String? ?? ''),
           subtitle: Text('${sub['profile_count']} ${AppStrings.get('profile').toLowerCase()}'),
           trailing: IconButton(
             icon: const Icon(Icons.more_vert),
@@ -538,7 +669,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               Padding(
                 padding: const EdgeInsets.only(left: 20, right: 20, bottom: 12),
                 child: Text(
-                  subscription['name'] as String,
+                  subscription['name'] as String? ?? '',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -618,7 +749,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             _buildSettingsTile(
               Icons.dark_mode,
               AppStrings.get('dark_mode'),
-              themeState.themeMode.name,
+              themeState.themeMode.displayName,
               () => _showThemeModeDialog(),
               trailing: Icon(
                 _getThemeModeIcon(themeState.themeMode),
@@ -728,7 +859,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           mainAxisSize: MainAxisSize.min,
           children: AppThemeMode.values.map((mode) {
             return ListTile(
-              title: Text(mode.name.capitalize()),
+              title: Text(mode.displayName),
               leading: Icon(_getThemeModeIcon(mode)),
               trailing: themeState.themeMode == mode
                   ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
@@ -883,11 +1014,4 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     Colors.brown,
     Colors.grey,
   ];
-}
-
-extension StringExtension on String {
-  String capitalize() {
-    if (isEmpty) return this;
-    return this[0].toUpperCase() + substring(1);
-  }
 }
