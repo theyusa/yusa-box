@@ -266,7 +266,6 @@ class ThemeNotifier extends Notifier<ThemeState> {
 /// Provider for theme state
 final themeProvider = NotifierProvider<ThemeNotifier, ThemeState>(
   ThemeNotifier.new,
-  name: 'themeProvider',
 );
 
 /// Provider for accessing theme mode

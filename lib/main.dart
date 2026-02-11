@@ -45,15 +45,19 @@ class MyApp extends ConsumerWidget {
             darkDynamic != null;
 
         if (useDynamicColor) {
-          // Use dynamic color (Monet) with contrast level
-          lightScheme = ColorScheme.fromCorePalette(
-            lightDynamic!,
+          // Use dynamic color (Monet) - harmonize and then apply contrast
+          final lightHarmonized = lightDynamic!.harmonized();
+          final darkHarmonized = darkDynamic!.harmonized();
+
+          // Apply contrast level using fromSeed with harmonized palette
+          lightScheme = ColorScheme.fromSeed(
+            seedColor: lightHarmonized.primary,
             brightness: Brightness.light,
             contrastLevel: themeState.contrastLevel,
           );
 
-          darkScheme = ColorScheme.fromCorePalette(
-            darkDynamic!,
+          darkScheme = ColorScheme.fromSeed(
+            seedColor: darkHarmonized.primary,
             brightness: Brightness.dark,
             contrastLevel: themeState.contrastLevel,
           );
@@ -869,7 +873,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                 Navigator.pop(context);
               },
             );
-          }),
+          }).toList(),
         ),
       ),
     );
@@ -931,24 +935,22 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
-            ...AppStrings.supportedLanguages.map((lang) {
-              return ListTile(
-                title: Text(AppStrings.getLanguageName(lang)),
-                trailing: _currentLanguage == lang
-                    ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
-                    : null,
-                onTap: () {
-                  setState(() {
-                    _currentLanguage = lang;
-                    AppStrings.setLanguage(lang);
-                  });
-                  _savePreferences();
-                  Navigator.pop(context);
-                },
-              );
-            }),
-          ],
+          children: AppStrings.supportedLanguages.map((lang) {
+            return ListTile(
+              title: Text(AppStrings.getLanguageName(lang)),
+              trailing: _currentLanguage == lang
+                  ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
+                  : null,
+              onTap: () {
+                setState(() {
+                  _currentLanguage = lang;
+                  AppStrings.setLanguage(lang);
+                });
+                _savePreferences();
+                Navigator.pop(context);
+              },
+            );
+          }).toList(),
         ),
       ),
     );
