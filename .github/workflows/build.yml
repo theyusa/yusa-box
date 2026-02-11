@@ -31,7 +31,12 @@ jobs:
         run: flutter analyze
 
       - name: Run tests
-        run: flutter test
+        run: |
+          if [ -d "test" ]; then
+            flutter test
+          else
+            echo "No tests found, skipping"
+          fi
 
       - name: Build Android APK (debug)
         run: flutter build apk --debug
