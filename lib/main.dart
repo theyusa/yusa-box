@@ -417,118 +417,65 @@ class _VPNHomePageState extends State<VPNHomePage> {
 
     showDialog(
       context: context,
-      builder: (context) => Dialog(
+      builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: _isDarkMode
-                  ? [
-                      Theme.of(context).colorScheme.surfaceContainerHighest,
-                      Theme.of(context).colorScheme.surface,
-                    ]
-                  : [
-                      Colors.blue.shade50,
-                      Colors.white,
-                    ],
+        title: Row(
+          children: [
+            Icon(
+              Icons.add_circle_outline,
+              color: Theme.of(context).colorScheme.primary,
             ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.add_circle_outline,
-                size: 48,
-                color: Theme.of(context).colorScheme.primary,
+            const SizedBox(width: 12),
+            Text(
+              AppStrings.get('add_subscription'),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
               ),
-              const SizedBox(height: 16),
-              Text(
-                AppStrings.get('add_subscription'),
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 24),
-              Container(
-                decoration: BoxDecoration(
-                  color: _isDarkMode
-                      ? Colors.grey.shade800
-                      : Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: TextField(
-                  controller: nameController,
-                  decoration: InputDecoration(
-                    labelText: AppStrings.get('subscription_name'),
-                    prefixIcon: const Icon(Icons.bookmark),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                decoration: BoxDecoration(
-                  color: _isDarkMode
-                      ? Colors.grey.shade800
-                      : Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: TextField(
-                  controller: urlController,
-                  decoration: InputDecoration(
-                    labelText: AppStrings.get('subscription_url'),
-                    prefixIcon: const Icon(Icons.link),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(AppStrings.get('cancel')),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(AppStrings.get('save')),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: InputDecoration(
+                labelText: AppStrings.get('subscription_name'),
+                prefixIcon: const Icon(Icons.bookmark),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: urlController,
+              decoration: InputDecoration(
+                labelText: AppStrings.get('subscription_url'),
+                prefixIcon: const Icon(Icons.link),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(AppStrings.get('cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: Text(AppStrings.get('save')),
+          ),
+        ],
       ),
     );
   }
@@ -605,79 +552,21 @@ class _VPNHomePageState extends State<VPNHomePage> {
   void _showDeleteDialog(Map<String, dynamic> subscription) {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
+      builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            color: Theme.of(context).colorScheme.surface,
+        title: Text(AppStrings.get('warning')),
+        content: Text(AppStrings.get('delete_confirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(AppStrings.get('cancel')),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.delete_outline,
-                  size: 48,
-                  color: Colors.red,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                AppStrings.get('warning'),
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                AppStrings.get('delete_confirm'),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(AppStrings.get('cancel')),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(AppStrings.get('delete')),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text(AppStrings.get('delete')),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -882,71 +771,36 @@ class _VPNHomePageState extends State<VPNHomePage> {
   void _showLanguageDialog() {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
+      builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            color: Theme.of(context).colorScheme.surface,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.language_outlined,
-                size: 48,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                AppStrings.get('language'),
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 24),
-              ...AppStrings.supportedLanguages.map((lang) {
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: _currentLanguage == lang
-                        ? Theme.of(context).colorScheme.primaryContainer
-                        : Theme.of(context).colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    title: Text(
-                      AppStrings.getLanguageName(lang),
-                      style: TextStyle(
-                        fontWeight: _currentLanguage == lang
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                    ),
-                    trailing: _currentLanguage == lang
-                        ? Icon(
-                            Icons.check_circle,
-                            color: Theme.of(context).colorScheme.primary,
-                          )
-                        : null,
-                    onTap: () {
-                      setState(() {
-                        _currentLanguage = lang;
-                        AppStrings.setLanguage(_currentLanguage);
-                      });
-                      _savePreferences();
-                      Navigator.pop(context);
-                    },
-                  ),
-                );
-              }),
-            ],
-          ),
+        title: Row(
+          children: [
+            Icon(
+              Icons.language_outlined,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 12),
+            Text(AppStrings.get('language')),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: AppStrings.supportedLanguages.map((lang) {
+            return ListTile(
+              title: Text(AppStrings.getLanguageName(lang)),
+              trailing: _currentLanguage == lang
+                  ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
+                  : null,
+              onTap: () {
+                setState(() {
+                  _currentLanguage = lang;
+                  AppStrings.setLanguage(_currentLanguage);
+                });
+                _savePreferences();
+                Navigator.pop(context);
+              },
+            );
+          }),
         ),
       ),
     );
