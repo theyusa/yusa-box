@@ -4,6 +4,7 @@ import 'package:dynamic_color/dynamic_color.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'strings.dart';
 import 'providers/theme_provider.dart';
+import 'models/vpn_models.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -224,24 +225,41 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   bool _isConnected = false;
   int _currentIndex = 0;
   String _currentLanguage = AppStrings.tr;
-  String _selectedServer = '';
+  
+  // State: Dynamic Data
+  List<VPNSubscription> _subscriptions = [];
+  VPNServer? _selectedServer; // Selected Server Object
 
   final Set<String> _expandedSections = {};
 
-  void _toggleSection(String section) {
-    setState(() {
-      if (_expandedSections.contains(section)) {
-        _expandedSections.remove(section);
-      } else {
-        _expandedSections.add(section);
-      }
-    });
-  }
+  static const List<Color> _seedColors = [
+    Colors.red, Colors.pink, Colors.purple, Colors.deepPurple, Colors.indigo,
+    Colors.blue, Colors.lightBlue, Colors.cyan, Colors.teal, Colors.green,
+    Colors.lightGreen, Colors.lime, Colors.yellow, Colors.amber, Colors.orange,
+    Colors.deepOrange, Colors.brown, Colors.grey,
+  ];
 
   @override
   void initState() {
     super.initState();
     _loadPreferences();
+    _loadDummyData();
+  }
+
+  void _loadDummyData() {
+    // Initial Dummy Subscription
+    final initialSub = VPNSubscription(
+      id: 'sub1',
+      name: 'Varsayılan Abonelik',
+      url: 'https://example.com/sub/vless',
+    );
+    initialSub.refreshServers(); // Load initial dummy servers
+    setState(() {
+      _subscriptions = [initialSub];
+      if (initialSub.servers.isNotEmpty) {
+        _selectedServer = initialSub.servers.first;
+      }
+    });
   }
 
   Future<void> _loadPreferences() async {
@@ -261,6 +279,16 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     await prefs.setString('language', _currentLanguage);
   }
 
+  void _toggleSection(String section) {
+    setState(() {
+      if (_expandedSections.contains(section)) {
+        _expandedSections.remove(section);
+      } else {
+        _expandedSections.add(section);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeState = ref.watch(themeProvider);
@@ -275,8 +303,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         index: _currentIndex,
         children: [
           _buildVPNView(),
-          _buildServerView(),
-          _buildSubscriptionView(),
+          _buildServerView(), // Now dynamically linked
+          _buildSubscriptionView(), // Now manages the data
           _buildSettingsView(themeState),
         ],
       ),
@@ -309,17 +337,21 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     );
   }
 
+  // --- VPN View ---
+
   Widget _buildVPNView() {
-    final selectedServer = _isConnected
-        ? '🇺🇸 United States'
+    final selectedServerName = _selectedServer != null 
+        ? '${_selectedServer!.flag} ${_selectedServer!.name}' 
         : AppStrings.get('not_connected');
+    
+    final displayServer = _isConnected ? selectedServerName : AppStrings.get('not_connected');
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
           const SizedBox(height: 20),
-          _buildConnectionCard(selectedServer),
+          _buildConnectionCard(displayServer),
           const SizedBox(height: 30),
           _buildConnectionStats(),
         ],
@@ -327,7 +359,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     );
   }
 
-  Widget _buildConnectionCard(String selectedServer) {
+  Widget _buildConnectionCard(String serverName) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
@@ -335,21 +367,15 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: _isConnected
-              ? [
-                  colorScheme.primary.withValues(alpha: 0.9),
-                  colorScheme.primary,
-                ]
-              : [
-                  colorScheme.primary.withValues(alpha: 0.7),
-                  colorScheme.primary,
-                ],
+              ? [colorScheme.primary.withOpacity(0.9), colorScheme.primary]
+              : [colorScheme.primary.withOpacity(0.7), colorScheme.primary],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.primary.withValues(alpha: 0.3),
+            color: colorScheme.primary.withOpacity(0.3),
             blurRadius: 20,
             spreadRadius: 5,
           ),
@@ -373,11 +399,12 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           ),
           const SizedBox(height: 10),
           Text(
-            selectedServer,
+            serverName,
             style: TextStyle(
               fontSize: 16,
-              color: colorScheme.onPrimary.withValues(alpha: 0.7),
+              color: colorScheme.onPrimary.withOpacity(0.7),
             ),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 30),
           SizedBox(
@@ -385,6 +412,12 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             height: 56,
             child: ElevatedButton(
               onPressed: () {
+                if (_selectedServer == null && !_isConnected) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Lütfen önce bir server seçin!')),
+                  );
+                  return;
+                }
                 setState(() {
                   _isConnected = !_isConnected;
                 });
@@ -411,130 +444,9 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     );
   }
 
-  Widget _buildServerView() {
-    final servers = [
-      {'flag': '🇺🇸', 'name': 'United States', 'city': 'New York', 'ping': '24ms'},
-      {'flag': '🇬🇧', 'name': 'United Kingdom', 'city': 'London', 'ping': '32ms'},
-      {'flag': '🇩🇪', 'name': 'Germany', 'city': 'Frankfurt', 'ping': '28ms'},
-      {'flag': '🇳🇱', 'name': 'Netherlands', 'city': 'Amsterdam', 'ping': '35ms'},
-      {'flag': '🇯🇵', 'name': 'Japan', 'city': 'Tokyo', 'ping': '180ms'},
-      {'flag': '🇸🇬', 'name': 'Singapore', 'city': 'Singapore', 'ping': '200ms'},
-    ];
-
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Server Listesi',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              IconButton(
-                onPressed: () => _showServerSettingsMenu(),
-                icon: const Icon(Icons.more_vert),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            itemCount: servers.length,
-            itemBuilder: (context, index) {
-              final server = servers[index];
-              final serverName = server['name'] ?? '';
-              final isSelected = _selectedServer == serverName;
-
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  leading: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainer,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Center(
-                      child: Text(
-                        server['flag'] ?? '',
-                        style: const TextStyle(fontSize: 28),
-                      ),
-                    ),
-                  ),
-                  title: Text(serverName),
-                  style: ListTileStyle.list,
-                  subtitle: Text('${server['city']} • ${server['ping']}', style: TextStyle(color: colorScheme.onSurfaceVariant)),
-                  trailing: Icon(
-                    isSelected ? Icons.check_circle : Icons.check_circle_outline,
-                    color: isSelected ? colorScheme.primary : colorScheme.outline,
-                  ),
-                  tileColor: colorScheme.surfaceContainer,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  onTap: () {
-                    setState(() {
-                      _selectedServer = serverName;
-                    });
-                  },
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showServerSettingsMenu() {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colorScheme.surfaceContainer,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        contentPadding: EdgeInsets.zero,
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(Icons.edit, color: colorScheme.primary),
-              title: Text('Düzenle', style: TextStyle(color: colorScheme.onSurface)),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.content_copy, color: colorScheme.primary),
-              title: Text('Kopyala', style: TextStyle(color: colorScheme.onSurface)),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: Text('Sil', style: const TextStyle(color: Colors.red)),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildConnectionStats() {
+    // ... (Keep existing stats logic)
     final colorScheme = Theme.of(context).colorScheme;
-
     return Card(
       elevation: 2,
       color: colorScheme.surfaceContainer,
@@ -543,7 +455,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            Row(
+             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildStatItem(AppStrings.get('download'),
@@ -556,7 +468,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildStatItem(AppStrings.get('ping'), _isConnected ? '24 ms' : '--', Icons.speed),
+                _buildStatItem(AppStrings.get('ping'), _isConnected ? (_selectedServer?.ping ?? '--') : '--', Icons.speed),
                 _buildStatItem(AppStrings.get('time'), _isConnected ? '02:15:30' : '--:--:--', Icons.timer),
               ],
             ),
@@ -568,30 +480,174 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
   Widget _buildStatItem(String label, String value, IconData icon) {
     final colorScheme = Theme.of(context).colorScheme;
-
     return Column(
       children: [
         Icon(icon, color: colorScheme.primary),
         const SizedBox(height: 8),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
+        Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        Text(label, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+      ],
+    );
+  }
+
+  // --- Server View (Dynamic) ---
+
+  Widget _buildServerView() {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    // Flatten logic: List all servers from all subscriptions
+    // Alternatively, group by subscription. Grouping is better for context.
+    
+    if (_subscriptions.isEmpty) {
+       return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.dns_outlined, size: 64, color: colorScheme.outline),
+            const SizedBox(height: 16),
+            Text(
+              'Server bulunamadı.',
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
+            TextButton(
+              onPressed: () {
+                setState(() => _currentIndex = 2); // Go to Subscription tab
+              },
+              child: const Text('Abonelik Ekle'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Server Listesi',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              IconButton(
+                onPressed: () {}, // Maybe sort or filter later
+                icon: const Icon(Icons.sort),
+              ),
+            ],
           ),
         ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: colorScheme.onSurfaceVariant,
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.only(bottom: 20),
+            itemCount: _subscriptions.length,
+            itemBuilder: (context, subIndex) {
+              final sub = _subscriptions[subIndex];
+              if (sub.servers.isEmpty) return const SizedBox.shrink();
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    child: Text(
+                      sub.name,
+                      style: TextStyle(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  ...sub.servers.map((server) {
+                    final isSelected = _selectedServer?.id == server.id;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        leading: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Text(server.flag, style: const TextStyle(fontSize: 24)),
+                          ),
+                        ),
+                        title: Text(
+                          server.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          '${server.city} • ${server.ping}',
+                          style: TextStyle(color: colorScheme.onSurfaceVariant),
+                        ),
+                        tileColor: isSelected 
+                            ? colorScheme.primaryContainer.withOpacity(0.3) 
+                            : colorScheme.surfaceContainer,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        onTap: () {
+                          setState(() {
+                            _selectedServer = server;
+                          });
+                        },
+                        trailing: PopupMenuButton<String>(
+                          icon: Icon(Icons.more_vert, color: colorScheme.onSurfaceVariant),
+                          onSelected: (value) {
+                            if (value == 'edit') {
+                              _showServerEditDialog(sub, server);
+                            } else if (value == 'delete') {
+                              _deleteServer(sub, server);
+                            } else if (value == 'copy') {
+                              // Copy logic (URL to clipboard)
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Server URL kopyalandı')),
+                              );
+                            }
+                          },
+                          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                            const PopupMenuItem<String>(
+                              value: 'edit',
+                              child: Row(
+                                children: [Icon(Icons.edit, size: 20), SizedBox(width: 8), Text('Düzenle')],
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'copy',
+                              child: Row(
+                                children: [Icon(Icons.content_copy, size: 20), SizedBox(width: 8), Text('Kopyala')],
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'delete',
+                              child: Row(
+                                children: [Icon(Icons.delete, color: Colors.red, size: 20), SizedBox(width: 8), Text('Sil', style: TextStyle(color: Colors.red))],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              );
+            },
           ),
         ),
       ],
     );
   }
 
+  // --- Subscription View ---
+
   Widget _buildSubscriptionView() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -601,140 +657,122 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             children: [
               Text(
                 AppStrings.get('v2ray_subs'),
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               IconButton(
-                onPressed: () => _showSubscriptionMenu(null),
+                onPressed: () => _showSubscriptionDialog(null),
                 icon: const Icon(Icons.add),
               ),
             ],
           ),
           const SizedBox(height: 20),
-          ..._buildSubscriptionList(),
+          if (_subscriptions.isEmpty)
+             Center(
+              child: Column(
+                children: [
+                  Icon(Icons.inbox_outlined, size: 64, color: colorScheme.outline),
+                  const SizedBox(height: 16),
+                  Text(
+                    AppStrings.get('no_subscriptions'),
+                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            )
+          else
+            ..._subscriptions.map((sub) => _buildSubscriptionCard(sub)),
         ],
       ),
     );
   }
 
-  List<Widget> _buildSubscriptionList() {
-    final subscriptions = [
-      {
-        'name': 'My Subscription 1',
-        'url': 'https://example.com/sub',
-        'active': true,
-        'profile_count': 12,
-      },
-    ];
-
+  Widget _buildSubscriptionCard(VPNSubscription sub) {
     final colorScheme = Theme.of(context).colorScheme;
-
-    if (subscriptions.isEmpty) {
-      return [
-        Center(
-          child: Column(
-            children: [
-              Icon(Icons.inbox_outlined, size: 64, color: colorScheme.outline),
-              const SizedBox(height: 16),
-              Text(
-                AppStrings.get('no_subscriptions'),
-                style: TextStyle(color: colorScheme.onSurfaceVariant),
-              ),
-            ],
-          ),
-        )
-      ];
-    }
-
-    return subscriptions.map((sub) {
-      return Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        elevation: 2,
-        color: colorScheme.surfaceContainer,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: ListTile(
-          contentPadding: const EdgeInsets.all(16),
-          leading: CircleAvatar(
-            backgroundColor: sub['active'] == true ? colorScheme.primary : colorScheme.surfaceContainerHighest,
-            child: Icon(Icons.cloud, color: colorScheme.onPrimary),
-          ),
-          title: Text(sub['name'] as String? ?? ''),
-          subtitle: Text('${sub['profile_count']} ${AppStrings.get('profile').toLowerCase()}'),
-          trailing: IconButton(
-            icon: const Icon(Icons.more_vert),
-            onPressed: () => _showSubscriptionMenu(sub),
-          ),
-        ),
-      );
-    }).toList();
-  }
-
-  void _showSubscriptionMenu(Map<String, dynamic>? subscription) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    if (subscription == null) {
-      _showAddSubscriptionDialog();
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colorScheme.surfaceContainer,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        contentPadding: EdgeInsets.zero,
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+    
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      color: colorScheme.surfaceContainer,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
           children: [
             ListTile(
-              leading: Icon(Icons.edit, color: colorScheme.primary),
-              title: Text(
-                AppStrings.get('edit'),
-                style: TextStyle(color: colorScheme.onSurface),
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                backgroundColor: colorScheme.primary,
+                child: Icon(Icons.cloud, color: colorScheme.onPrimary),
               ),
-              onTap: () {
-                Navigator.pop(context);
-              },
+              title: Text(sub.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('${sub.servers.length} ${AppStrings.get('profile').toLowerCase()} • ${sub.url}', maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
-            ListTile(
-              leading: Icon(Icons.sync, color: colorScheme.primary),
-              title: Text(
-                'Abonelik Linkini Güncelle',
-                style: TextStyle(color: colorScheme.onSurface),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.content_copy, color: colorScheme.primary),
-              title: Text('Kopyala', style: TextStyle(color: colorScheme.onSurface)),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: Text(
-                'Sil',
-                style: const TextStyle(color: Colors.red),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                _showDeleteDialog(subscription);
-              },
-            ),
+            const Divider(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // Quick Actions: Update, Ping
+                IconButton(
+                  tooltip: 'Yenile',
+                  icon: const Icon(Icons.refresh),
+                  onPressed: () {
+                    // Refresh logic
+                    setState(() {
+                      sub.refreshServers();
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('${sub.name} güncellendi')),
+                    );
+                  },
+                ),
+                IconButton(
+                  tooltip: 'Test Et',
+                  icon: const Icon(Icons.network_check), // Ping/Test icon
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Ping testi başlatıldı...')),
+                    );
+                  },
+                ),
+                // More Actions: Edit, Delete
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      _showSubscriptionDialog(sub);
+                    } else if (value == 'delete') {
+                      _showDeleteSubscriptionDialog(sub);
+                    }
+                  },
+                  itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                    const PopupMenuItem<String>(
+                      value: 'edit',
+                      child: Row(
+                        children: [Icon(Icons.edit, size: 20), SizedBox(width: 8), Text('Düzenle')],
+                      ),
+                    ),
+                    const PopupMenuItem<String>(
+                      value: 'delete',
+                      child: Row(
+                        children: [Icon(Icons.delete, color: Colors.red, size: 20), SizedBox(width: 8), Text('Sil', style: TextStyle(color: Colors.red))],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            )
           ],
         ),
       ),
     );
   }
 
-  void _showAddSubscriptionDialog() {
-    final nameController = TextEditingController();
-    final urlController = TextEditingController();
+  // --- Dialogs ---
+
+  void _showSubscriptionDialog(VPNSubscription? sub) {
+    final isEditing = sub != null;
+    final nameController = TextEditingController(text: isEditing ? sub.name : '');
+    final urlController = TextEditingController(text: isEditing ? sub.url : '');
     final colorScheme = Theme.of(context).colorScheme;
 
     showDialog(
@@ -744,9 +782,9 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Row(
           children: [
-            Icon(Icons.add_circle_outline, color: colorScheme.primary),
+            Icon(isEditing ? Icons.edit : Icons.add_circle_outline, color: colorScheme.primary),
             const SizedBox(width: 12),
-            Text(AppStrings.get('add_subscription'), style: TextStyle(color: colorScheme.onSurface)),
+            Text(isEditing ? AppStrings.get('edit') : AppStrings.get('add_subscription'), style: TextStyle(color: colorScheme.onSurface)),
           ],
         ),
         content: Column(
@@ -754,55 +792,17 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           children: [
             TextField(
               controller: nameController,
-              style: TextStyle(color: colorScheme.onSurface),
               decoration: InputDecoration(
                 labelText: AppStrings.get('subscription_name'),
-                labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                 prefixIcon: const Icon(Icons.bookmark),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: colorScheme.outline),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: colorScheme.outline),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: colorScheme.primary,
-                    width: 2,
-                  ),
-                ),
-                filled: true,
-                fillColor: colorScheme.surfaceContainerHighest,
               ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: urlController,
-              style: TextStyle(color: colorScheme.onSurface),
               decoration: InputDecoration(
                 labelText: AppStrings.get('subscription_url'),
-                labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                 prefixIcon: const Icon(Icons.link),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: colorScheme.outline),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: colorScheme.outline),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: colorScheme.primary,
-                    width: 2,
-                  ),
-                ),
-                filled: true,
-                fillColor: colorScheme.surfaceContainerHighest,
               ),
             ),
           ],
@@ -810,10 +810,30 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(AppStrings.get('cancel'), style: TextStyle(color: colorScheme.primary)),
+            child: Text(AppStrings.get('cancel')),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              final name = nameController.text.trim();
+              final url = urlController.text.trim();
+              if (name.isNotEmpty && url.isNotEmpty) {
+                setState(() {
+                  if (isEditing) {
+                    sub.name = name;
+                    sub.url = url;
+                  } else {
+                    final newSub = VPNSubscription(
+                      id: DateTime.now().millisecondsSinceEpoch.toString(),
+                      name: name,
+                      url: url,
+                    );
+                    newSub.refreshServers(); // Load initial dummy servers
+                    _subscriptions.add(newSub);
+                  }
+                });
+                Navigator.pop(context);
+              }
+            },
             child: Text(AppStrings.get('save')),
           ),
         ],
@@ -821,33 +841,94 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     );
   }
 
-  void _showDeleteDialog(Map<String, dynamic> subscription) {
-    final colorScheme = Theme.of(context).colorScheme;
-
+  void _showDeleteSubscriptionDialog(VPNSubscription sub) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: colorScheme.surfaceContainer,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(AppStrings.get('warning'), style: TextStyle(color: colorScheme.onSurface)),
-        content: Text(AppStrings.get('delete_confirm'), style: TextStyle(color: colorScheme.onSurface)),
+        title: Text(AppStrings.get('warning')),
+        content: const Text('Bu aboneliği ve tüm serverlarını silmek istediğinize emin misiniz?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(AppStrings.get('cancel'), style: TextStyle(color: colorScheme.primary)),
+            child: Text(AppStrings.get('cancel')),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () {
+              setState(() {
+                _subscriptions.remove(sub);
+                // If the selected server belonged to this sub, clear selection
+                if (_selectedServer != null && sub.servers.any((s) => s.id == _selectedServer!.id)) {
+                  _selectedServer = null;
+                  _isConnected = false; // Disconnect safely
+                }
+              });
+              Navigator.pop(context);
+            },
             child: Text(AppStrings.get('delete')),
           ),
         ],
       ),
     );
   }
+
+  void _showServerEditDialog(VPNSubscription sub, VPNServer server) {
+    final nameController = TextEditingController(text: server.name);
+    final addressController = TextEditingController(text: server.address);
+    final colorScheme = Theme.of(context).colorScheme;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Server Düzenle'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Server Adı', prefixIcon: Icon(Icons.dns)),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: addressController,
+              decoration: const InputDecoration(labelText: 'Adres', prefixIcon: Icon(Icons.language)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(AppStrings.get('cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                server.name = nameController.text;
+                server.address = addressController.text;
+              });
+              Navigator.pop(context);
+            },
+            child: Text(AppStrings.get('save')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteServer(VPNSubscription sub, VPNServer server) {
+     setState(() {
+      sub.servers.remove(server);
+      if (_selectedServer?.id == server.id) {
+        _selectedServer = null;
+        _isConnected = false;
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Server silindi')),
+    );
+  }
+
+  // --- Settings View ---
 
   Widget _buildSettingsView(ThemeState themeState) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -1247,25 +1328,4 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       ),
     );
   }
-
-  static const List<Color> _seedColors = [
-    Colors.red,
-    Colors.pink,
-    Colors.purple,
-    Colors.deepPurple,
-    Colors.indigo,
-    Colors.blue,
-    Colors.lightBlue,
-    Colors.cyan,
-    Colors.teal,
-    Colors.green,
-    Colors.lightGreen,
-    Colors.lime,
-    Colors.yellow,
-    Colors.amber,
-    Colors.orange,
-    Colors.deepOrange,
-    Colors.brown,
-    Colors.grey,
-  ];
 }
