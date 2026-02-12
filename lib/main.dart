@@ -280,6 +280,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         index: _currentIndex,
         children: [
           _buildVPNView(),
+          _buildServerView(),
           _buildSubscriptionView(),
           _buildSettingsView(themeState),
         ],
@@ -295,6 +296,10 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           NavigationDestination(
             icon: const Icon(Icons.vpn_lock),
             label: AppStrings.get('vpn'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.dns),
+            label: 'Server',
           ),
           NavigationDestination(
             icon: const Icon(Icons.workspace_premium),
@@ -321,8 +326,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           const SizedBox(height: 20),
           _buildConnectionCard(selectedServer),
           const SizedBox(height: 30),
-          _buildServerSelector(),
-          const SizedBox(height: 20),
           _buildConnectionStats(),
         ],
       ),
@@ -405,146 +408,89 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     );
   }
 
-  Widget _buildServerSelector() {
+  Widget _buildServerView() {
     final servers = [
       {'flag': '🇺🇸', 'name': 'United States', 'city': 'New York', 'ping': '24ms'},
       {'flag': '🇬🇧', 'name': 'United Kingdom', 'city': 'London', 'ping': '32ms'},
       {'flag': '🇩🇪', 'name': 'Germany', 'city': 'Frankfurt', 'ping': '28ms'},
+      {'flag': '🇳🇱', 'name': 'Netherlands', 'city': 'Amsterdam', 'ping': '35ms'},
+      {'flag': '🇯🇵', 'name': 'Japan', 'city': 'Tokyo', 'ping': '180ms'},
+      {'flag': '🇸🇬', 'name': 'Singapore', 'city': 'Singapore', 'ping': '200ms'},
     ];
 
-    return InkWell(
-      onTap: () => _showServerBottomSheet(servers),
-      borderRadius: BorderRadius.circular(16),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(20),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                AppStrings.get('select_server'),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                'Server Listesi',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
-              Icon(Icons.keyboard_arrow_down, color: Theme.of(context).colorScheme.primary),
+              TextButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.edit),
+                label: const Text('Düzenle'),
+              ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  void _showServerBottomSheet(List<Map<String, String>> servers) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.4,
-        maxChildSize: 0.9,
-        builder: (context, scrollController) {
-          final colorScheme = Theme.of(context).colorScheme;
-          final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
-
-          return Container(
-            decoration: BoxDecoration(
-              color: isTrueBlack ? const Color(0xFF0A0A0A) : colorScheme.surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            itemCount: servers.length,
+            separatorBuilder: (context, index) => Divider(
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+              height: 1,
             ),
-            child: Column(
-              children: [
-                Container(
-                  margin: const EdgeInsets.symmetric(vertical: 12),
-                  width: 40,
-                  height: 4,
+            itemBuilder: (context, index) {
+              final server = servers[index];
+              final colorScheme = Theme.of(context).colorScheme;
+              final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
+
+              return ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                leading: Container(
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    color: colorScheme.onSurface.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
+                    color: isTrueBlack ? const Color(0xFF141414) : colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Server Listesi',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.onSurface,
-                            ),
-                      ),
-                      TextButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.edit),
-                        label: const Text('Düzenle'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: colorScheme.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Divider(
-                  color: colorScheme.onSurface.withValues(alpha: 0.1),
-                ),
-                Expanded(
-                  child: ListView.separated(
-                    controller: scrollController,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: servers.length,
-                    separatorBuilder: (context, index) => Divider(
-                      color: colorScheme.onSurface.withValues(alpha: 0.1),
-                      height: 1,
+                  child: Center(
+                    child: Text(
+                      server['flag'] ?? '',
+                      style: const TextStyle(fontSize: 28),
                     ),
-                    itemBuilder: (context, index) {
-                      final server = servers[index];
-                      return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                        leading: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: isTrueBlack ? const Color(0xFF141414) : colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Center(
-                            child: Text(
-                              server['flag'] ?? '',
-                              style: const TextStyle(fontSize: 28),
-                            ),
-                          ),
-                        ),
-                        title: Text(
-                          server['name'] ?? '',
-                          style: TextStyle(color: colorScheme.onSurface),
-                        ),
-                        subtitle: Text(
-                          '${server['city']} • ${server['ping']}',
-                          style: TextStyle(color: colorScheme.onSurfaceVariant),
-                        ),
-                        trailing: Icon(
-                          Icons.check_circle_outline,
-                          color: colorScheme.primary,
-                        ),
-                        tileColor: isTrueBlack ? const Color(0xFF141414) : null,
-                        onTap: () {
-                          Navigator.pop(context);
-                        },
-                      );
-                    },
                   ),
                 ),
-              ],
-            ),
-          );
-        },
-      ),
+                title: Text(
+                  server['name'] ?? '',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: Text(
+                  '${server['city']} • ${server['ping']}',
+                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                ),
+                trailing: Icon(
+                  Icons.check_circle_outline,
+                  color: colorScheme.primary,
+                ),
+                tileColor: isTrueBlack ? const Color(0xFF141414) : null,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                onTap: () {},
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -1276,20 +1222,10 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             ),
           ),
           if (isExpanded)
-            Column(
-              children: List.generate(
-                children.length,
-                (index) => Column(
-                  children: [
-                    children[index],
-                    if (index < children.length - 1)
-                      Divider(
-                        height: 20,
-                        thickness: 1,
-                        color: colorScheme.onSurface.withValues(alpha: 0.1),
-                      ),
-                  ],
-                ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                children: children,
               ),
             ),
         ],
@@ -1308,7 +1244,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       child: ListTile(
         leading: Icon(icon),
         title: Text(title),
