@@ -547,68 +547,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       ],
     );
   }
-                setState(() {
-                  _isConnected = !_isConnected;
-                  if (_isConnected) {
-                    _addLog('Bağlandı: ${_selectedServer?.name}');
-                  } else {
-                    _addLog('Bağlantı kesildi');
-                  }
-                });
-            },
-            backgroundColor: _isConnected ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
-            foregroundColor: _isConnected ? Theme.of(context).colorScheme.onError : Theme.of(context).colorScheme.onPrimary,
-            elevation: 4,
-            shape: const CircleBorder(),
-            child: Icon(_isConnected ? Icons.power_settings_new : Icons.bolt, size: 48),
-          ),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildDashboardGrid() {
-    final colorScheme = Theme.of(context).colorScheme;
-    final selectedServerName = _selectedServer != null 
-        ? '${_selectedServer!.flag} ${_selectedServer!.name}' 
-        : 'Seçili Değil';
-
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 1.5,
-      children: [
-        _buildDashboardCard(
-          title: 'Durum',
-          value: _isConnected ? 'Bağlı' : 'Kesik',
-          icon: _isConnected ? Icons.check_circle : Icons.cancel,
-          color: _isConnected ? Colors.green : colorScheme.outline,
-        ),
-        _buildDashboardCard(
-          title: 'Server',
-          value: selectedServerName,
-          icon: Icons.dns,
-          color: colorScheme.primary,
-          isSmallText: true,
-        ),
-        _buildDashboardCard(
-          title: 'İndirme',
-          value: _isConnected ? '12.5 MB' : '0 KB',
-          icon: Icons.download,
-          color: Colors.blue,
-        ),
-        _buildDashboardCard(
-          title: 'Yükleme',
-          value: _isConnected ? '5.2 MB' : '0 KB',
-          icon: Icons.upload,
-          color: Colors.orange,
-        ),
-      ],
-    );
-  }
 
   Widget _buildDashboardCard({
     required String title,
