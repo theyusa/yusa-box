@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'strings.dart';
 import 'providers/theme_provider.dart';
 import 'models/vpn_models.dart';
+import 'services/singbox_service.dart';
+import 'services/subscription_service.dart';
 
 enum SortOption { name, ping }
 
@@ -224,6 +226,9 @@ class VPNHomePage extends ConsumerStatefulWidget {
 }
 
 class _VPNHomePageState extends ConsumerState<VPNHomePage> {
+  final _singboxService = SingboxService();
+  final _subscriptionService = SubscriptionService();
+
   bool _isConnected = false;
   int _currentIndex = 0;
   String _currentLanguage = AppStrings.tr;
@@ -263,13 +268,29 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       name: 'Varsayılan Abonelik',
       url: 'https://example.com/sub/vless',
     );
-    initialSub.refreshServers(); // Load initial dummy servers
+    // initialSub.refreshServers(); // Load initial dummy servers
     setState(() {
       _subscriptions = [initialSub];
-      if (initialSub.servers.isNotEmpty) {
-        _selectedServer = initialSub.servers.first;
-      }
+      // if (initialSub.servers.isNotEmpty) {
+      //   _selectedServer = initialSub.servers.first;
+      // }
     });
+  }
+
+  Future<void> _refreshSubscription(VPNSubscription sub) async {
+    _addLog('Abonelik güncelleniyor: ${sub.name}');
+    try {
+      final servers = await _subscriptionService.fetchServers(sub.url);
+      setState(() {
+        sub.servers = servers;
+        _addLog('${sub.name}: ${servers.length} server bulundu.');
+      });
+    } catch (e) {
+      _addLog('Hata: ${e.toString()}');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Hata: ${e.toString()}')),
+      );
+    }
   }
 
   Future<void> _loadPreferences() async {
@@ -472,21 +493,35 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           bottom: 16,
           right: 16,
           child: FloatingActionButton(
-            onPressed: () {
+            onPressed: () async {
                 if (_selectedServer == null && !_isConnected) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Lütfen önce bir server seçin!')),
                   );
                   return;
                 }
-                setState(() {
-                  _isConnected = !_isConnected;
+                
+                try {
                   if (_isConnected) {
-                    _addLog('Bağlandı: ${_selectedServer?.name}');
-                  } else {
+                    await _singboxService.stop();
+                    setState(() => _isConnected = false);
                     _addLog('Bağlantı kesildi');
+                  } else {
+                    _addLog('Bağlanılıyor: ${_selectedServer?.name}...');
+                    // In a real app, you would generate the full JSON config from _selectedServer
+                    // For now, we pass a placeholder or raw config if available.
+                    final config = _selectedServer?.rawConfig ?? '{}'; 
+                    await _singboxService.start(config);
+                    setState(() => _isConnected = true);
+                    _addLog('Bağlandı: ${_selectedServer?.name}');
                   }
-                });
+                } catch (e) {
+                  _addLog('Hata: ${e.toString()}');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Bağlantı hatası: ${e.toString()}')),
+                  );
+                  setState(() => _isConnected = false);
+                }
             },
             backgroundColor: _isConnected ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
             foregroundColor: _isConnected ? Theme.of(context).colorScheme.onError : Theme.of(context).colorScheme.onPrimary,
@@ -693,13 +728,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                     tooltip: 'Tümünü Güncelle',
                     icon: const Icon(Icons.refresh),
                     onPressed: () {
-                      setState(() {
-                        for (var sub in _subscriptions) {
-                          sub.refreshServers();
-                        }
-                      });
+                      for (var sub in _subscriptions) {
+                        _refreshSubscription(sub);
+                      }
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Tüm abonelikler güncellendi')),
+                        const SnackBar(content: Text('Tüm abonelikler güncelleniyor...')),
                       );
                     },
                   ),
@@ -916,19 +949,13 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 // Quick Actions: Update, Ping
-                IconButton(
-                  tooltip: 'Yenile',
-                  icon: const Icon(Icons.refresh),
-                  onPressed: () {
-                    // Refresh logic
-                    setState(() {
-                      sub.refreshServers();
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${sub.name} güncellendi')),
-                    );
-                  },
-                ),
+                  IconButton(
+                    tooltip: 'Yenile',
+                    icon: const Icon(Icons.refresh),
+                    onPressed: () {
+                      _refreshSubscription(sub);
+                    },
+                  ),
                 IconButton(
                   tooltip: 'Test Et',
                   icon: const Icon(Icons.network_check), // Ping/Test icon
@@ -1020,21 +1047,24 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             onPressed: () {
               final name = nameController.text.trim();
               final url = urlController.text.trim();
+              
               if (name.isNotEmpty && url.isNotEmpty) {
-                setState(() {
-                  if (isEditing) {
-                    sub.name = name;
-                    sub.url = url;
-                  } else {
-                    final newSub = VPNSubscription(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      name: name,
-                      url: url,
-                    );
-                    newSub.refreshServers(); // Load initial dummy servers
+                if (isEditing) {
+                  setState(() {
+                    sub!.name = name;
+                    sub!.url = url;
+                  });
+                } else {
+                  final newSub = VPNSubscription(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    name: name,
+                    url: url,
+                  );
+                  setState(() {
                     _subscriptions.add(newSub);
-                  }
-                });
+                  });
+                  _refreshSubscription(newSub);
+                }
                 Navigator.pop(context);
               }
             },

@@ -8,6 +8,7 @@ class VPNServer {
   String city;
   String ping;
   String protocol; // vmess, vless, trojan vs.
+  String? rawConfig;
 
   VPNServer({
     required this.id,
@@ -18,6 +19,7 @@ class VPNServer {
     this.city = '',
     this.ping = '--',
     this.protocol = 'vless',
+    this.rawConfig,
   });
 }
 
@@ -34,30 +36,12 @@ class VPNSubscription {
     List<VPNServer>? servers,
   }) : servers = servers ?? [];
 
-  // Helper to simulate fetching servers from the URL
-  void refreshServers() {
-    // Gerçek uygulamada burada HTTP isteği atılıp JSON parse edilecek.
-    // Şimdilik simüle ediyoruz.
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    servers = [
-      VPNServer(
-        id: '${id}_1_$timestamp',
-        name: '$name - Server 1',
-        address: '192.168.1.1',
-        port: 443,
-        flag: '🇺🇸',
-        city: 'New York',
-        ping: '${(10 + (timestamp % 50))}ms',
-      ),
-      VPNServer(
-        id: '${id}_2_$timestamp',
-        name: '$name - Server 2',
-        address: '192.168.1.2',
-        port: 443,
-        flag: '🇩🇪',
-        city: 'Frankfurt',
-        ping: '${(20 + (timestamp % 50))}ms',
-      ),
-    ];
+  // Helper to fetch servers from the URL
+  Future<void> refreshServers() async {
+    // This method will be implemented using SubscriptionService in the main logic or here if we import it.
+    // However, to keep models clean, we might want to pass the service or move logic out.
+    // For simplicity, let's keep the dummy logic here but commented out, 
+    // and rely on the UI/Provider to call the service and update the list.
+    // Or better, import the service here.
   }
 }
