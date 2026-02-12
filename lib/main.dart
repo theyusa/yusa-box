@@ -723,7 +723,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               ),
               onTap: () {
                 Navigator.pop(context);
-                _showDeleteDialog(subscription!);
+                _showDeleteDialog(subscription);
               },
             ),
           ],
@@ -850,6 +850,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   Widget _buildSettingsView(ThemeState themeState) {
+    final colorScheme = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
