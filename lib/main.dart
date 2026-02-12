@@ -875,7 +875,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   void _showServerEditDialog(VPNSubscription sub, VPNServer server) {
     final nameController = TextEditingController(text: server.name);
     final addressController = TextEditingController(text: server.address);
-    final colorScheme = Theme.of(context).colorScheme;
 
     showDialog(
       context: context,
@@ -931,6 +930,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   // --- Settings View ---
 
   Widget _buildSettingsView(ThemeState themeState) {
+    final colorScheme = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
