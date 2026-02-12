@@ -738,7 +738,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          _buildSettingsSection(AppStrings.get('general'), [
+          _buildSettingsSection('Kişiselleştirme', [
             _buildSettingsTile(
               Icons.language,
               AppStrings.get('language'),
@@ -749,7 +749,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             ),
             _buildSettingsTile(
               Icons.dark_mode,
-              AppStrings.get('dark_mode'),
+              'Tema Modu',
               themeState.themeMode.displayName,
               () => _showThemeModeDialog(),
               trailing: Icon(
@@ -757,13 +757,10 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                 color: Theme.of(context).colorScheme.primary,
               ),
             ),
-          ]),
-          const SizedBox(height: 20),
-          _buildSettingsSection('Theme', [
             _buildSettingsTile(
               Icons.palette,
-              'Dynamic Color',
-              themeState.isDynamicColorEnabled ? 'On' : 'Off',
+              'Dinamik Renk',
+              themeState.isDynamicColorEnabled ? 'Açık' : 'Kapalı',
               () => ref.read(themeProvider.notifier).toggleDynamicColor(),
               trailing: Switch(
                 value: themeState.isDynamicColorEnabled,
@@ -773,7 +770,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             if (!themeState.isDynamicColorEnabled)
               _buildSettingsTile(
                 Icons.color_lens,
-                'Seed Color',
+                'Tohum Rengi',
                 '',
                 () => _showSeedColorDialog(themeState),
                 trailing: Container(
@@ -788,7 +785,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             _buildSettingsTile(
               Icons.contrast,
               'True Black (OLED)',
-              themeState.isTrueBlackEnabled ? 'On' : 'Off',
+              themeState.isTrueBlackEnabled ? 'Açık' : 'Kapalı',
               () => ref.read(themeProvider.notifier).toggleTrueBlack(),
               trailing: Switch(
                 value: themeState.isTrueBlackEnabled,
@@ -797,8 +794,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             ),
             _buildSettingsTile(
               Icons.accessibility,
-              'High Contrast',
-              themeState.contrastLevel > 0 ? 'On' : 'Off',
+              'Yüksek Kontrast',
+              themeState.contrastLevel > 0 ? 'Açık' : 'Kapalı',
               () => ref.read(themeProvider.notifier).toggleContrastMode(),
               trailing: Switch(
                 value: themeState.contrastLevel > 0,
@@ -807,20 +804,67 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             ),
           ]),
           const SizedBox(height: 20),
-          _buildSettingsSection(AppStrings.get('connection'), [
+          _buildSettingsSection('VPN Ayarları', [
             _buildSettingsTile(
               Icons.vpn_lock,
               AppStrings.get('auto_connect'),
-              'Off',
+              'Kapalı',
               () {},
               trailing: Switch(value: false, onChanged: (_) {}),
             ),
             _buildSettingsTile(
               Icons.network_check,
               AppStrings.get('kill_switch'),
-              'On',
+              'Açık',
               () {},
               trailing: Switch(value: true, onChanged: (_) {}),
+            ),
+            _buildSettingsTile(
+              Icons.speed,
+              'Kill Switch Bekleme Süresi',
+              '5s',
+              () {},
+            ),
+            _buildSettingsTile(
+              Icons.settings_suggest,
+              'MTU Ayarı',
+              '1400',
+              () {},
+            ),
+          ]),
+          const SizedBox(height: 20),
+          _buildSettingsSection('V2Ray Ayarları', [
+            _buildSettingsTile(
+              Icons.route,
+              'Yönlendirme Modu',
+              'Tüm Trafik',
+              () {},
+            ),
+            _buildSettingsTile(
+              Icons.dns,
+              'DNS Ayarları',
+              'Özel',
+              () {},
+            ),
+            _buildSettingsTile(
+              Icons.security,
+              'TLS Ayarları',
+              'Otomatik',
+              () {},
+            ),
+            _buildSettingsTile(
+              Icons.bolt,
+              'TCP Fast Open',
+              'Kapalı',
+              () {},
+              trailing: Switch(value: false, onChanged: (_) {}),
+            ),
+            _buildSettingsTile(
+              Icons.speed,
+              'Mux Ayarı',
+              'Kapalı',
+              () {},
+              trailing: Switch(value: false, onChanged: (_) {}),
             ),
           ]),
           const SizedBox(height: 20),
@@ -855,7 +899,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Theme Mode'),
+        title: const Text('Tema Modu'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: AppThemeMode.values.map((mode) {
@@ -883,7 +927,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Select Seed Color'),
+        title: const Text('Tohum Rengi Seç'),
         content: SizedBox(
           width: double.maxFinite,
           child: GridView.builder(
