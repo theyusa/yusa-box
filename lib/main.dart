@@ -258,19 +258,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   void initState() {
     super.initState();
     _loadPreferences();
+    _loadDummyData();
     _listenToVpnStatus();
-  }
-
-  Future<void> _loadPreferences() async {
-    final prefs = await SharedPreferences.getInstance();
-    final language = prefs.getString('language') ?? AppStrings.tr;
-
-    if (mounted) {
-      setState(() {
-        _currentLanguage = language;
-        AppStrings.setLanguage(language);
-      });
-    }
   }
 
   void _listenToVpnStatus() {
@@ -286,6 +275,22 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             _addLog('VPN Hatası: $message');
           }
         });
+      }
+    });
+  }
+
+  void _loadDummyData() {
+    // Initial Dummy Subscription
+    final initialSub = VPNSubscription(
+      id: 'sub1',
+      name: 'Varsayılan Abonelik',
+      url: 'https://example.com/sub/vless',
+    );
+    initialSub.refreshServers(); // Load initial dummy servers
+    setState(() {
+      _subscriptions = [initialSub];
+      if (initialSub.servers.isNotEmpty) {
+        _selectedServer = initialSub.servers.first;
       }
     });
   }
@@ -310,6 +315,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     }
   }
 
+  Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     final language = prefs.getString('language') ?? AppStrings.tr;
 
@@ -1542,9 +1548,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
   String _generateSingboxConfig(VPNServer server) {
     String protocol = 'vless';
-    String uuid = '00000000-0000-0000-0000-000000000000';
-    String password = '';
-
+    
     if (server.protocol == 'VMESS') {
       protocol = 'vmess';
     } else if (server.protocol == 'VLESS') {
@@ -1591,8 +1595,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       "tag": "proxy",
       "server": "${server.address}",
       "server_port": ${server.port},
-      "uuid": "$uuid",
-      $password
+      "uuid": "00000000-0000-0000-0000-000000000000",
       "tls": {
         "enabled": true,
         "server_name": "${server.address}",
@@ -1614,10 +1617,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       {
         "geoip": "private",
         "outbound": "direct"
-      },
-      {
-        "protocol": "dns",
-        "outbound": "dns-out"
       }
     ]
   }

@@ -51,7 +51,7 @@ class SubscriptionService {
           servers.add(server);
         }
       } else if (json is Map) {
-        final server = _parseJsonServer(json);
+        final server = _parseJsonServer(json as Map<String, dynamic>);
         servers.add(server);
       }
 
