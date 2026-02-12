@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'strings.dart';
 import 'providers/theme_provider.dart';
 import 'models/vpn_models.dart';
+import 'services/vpn_service.dart';
+import 'services/subscription_service.dart';
 
 enum SortOption { name, ping }
 
@@ -224,6 +226,9 @@ class VPNHomePage extends ConsumerStatefulWidget {
 }
 
 class _VPNHomePageState extends ConsumerState<VPNHomePage> {
+  final _vpnService = VpnService();
+  final _subscriptionService = SubscriptionService();
+
   bool _isConnected = false;
   int _currentIndex = 0;
   String _currentLanguage = AppStrings.tr;
@@ -253,26 +258,58 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   void initState() {
     super.initState();
     _loadPreferences();
-    _loadDummyData();
+    _listenToVpnStatus();
   }
 
-  void _loadDummyData() {
-    // Initial Dummy Subscription
-    final initialSub = VPNSubscription(
-      id: 'sub1',
-      name: 'Varsayılan Abonelik',
-      url: 'https://example.com/sub/vless',
-    );
-    initialSub.refreshServers(); // Load initial dummy servers
-    setState(() {
-      _subscriptions = [initialSub];
-      if (initialSub.servers.isNotEmpty) {
-        _selectedServer = initialSub.servers.first;
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    final language = prefs.getString('language') ?? AppStrings.tr;
+
+    if (mounted) {
+      setState(() {
+        _currentLanguage = language;
+        AppStrings.setLanguage(language);
+      });
+    }
+  }
+
+  void _listenToVpnStatus() {
+    _vpnService.statusStream.listen((status) {
+      final state = status['state'] as int? ?? 0;
+      if (mounted) {
+        setState(() {
+          _isConnected = state == 2;
+          if (state == 2) {
+            _addLog('VPN Bağlandı');
+          } else if (state == 4) {
+            final message = status['message'] as String? ?? 'Hata';
+            _addLog('VPN Hatası: $message');
+          }
+        });
       }
     });
   }
 
-  Future<void> _loadPreferences() async {
+  Future<void> _refreshSubscription(VPNSubscription sub) async {
+    _addLog('Abonelik güncelleniyor: ${sub.name}');
+    try {
+      final servers = await _subscriptionService.fetchServersFromSubscription(sub.url);
+      if (mounted) {
+        setState(() {
+          sub.servers = servers;
+          _addLog('${sub.name}: ${servers.length} server bulundu.');
+        });
+      }
+    } catch (e) {
+      _addLog('Hata: ${e.toString()}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Hata: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
     final prefs = await SharedPreferences.getInstance();
     final language = prefs.getString('language') ?? AppStrings.tr;
 
@@ -472,21 +509,40 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           bottom: 16,
           right: 16,
           child: FloatingActionButton(
-            onPressed: () {
+            onPressed: () async {
                 if (_selectedServer == null && !_isConnected) {
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Lütfen önce bir server seçin!')),
                   );
                   return;
                 }
-                setState(() {
-                  _isConnected = !_isConnected;
-                  if (_isConnected) {
-                    _addLog('Bağlandı: ${_selectedServer?.name}');
-                  } else {
-                    _addLog('Bağlantı kesildi');
+
+                if (_isConnected) {
+                  await _vpnService.stopVpn();
+                } else {
+                  if (!mounted) return;
+                  final scaffoldMessenger = ScaffoldMessenger.of(context);
+                  final hasPermission = await _vpnService.requestVpnPermission();
+                  if (!hasPermission) {
+                    if (mounted) {
+                      scaffoldMessenger.showSnackBar(
+                        const SnackBar(content: Text('VPN izni gerekli')),
+                      );
+                    }
+                    return;
                   }
-                });
+
+                  if (_selectedServer != null) {
+                    final config = _generateSingboxConfig(_selectedServer!);
+                    final success = await _vpnService.startVpn(config);
+                    if (!success && mounted) {
+                      scaffoldMessenger.showSnackBar(
+                        const SnackBar(content: Text('VPN bağlantısı başarısız')),
+                      );
+                    }
+                  }
+                }
             },
             backgroundColor: _isConnected ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
             foregroundColor: _isConnected ? Theme.of(context).colorScheme.onError : Theme.of(context).colorScheme.onPrimary,
@@ -1482,6 +1538,91 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         ),
       ),
     );
+  }
+
+  String _generateSingboxConfig(VPNServer server) {
+    String protocol = 'vless';
+    String uuid = '00000000-0000-0000-0000-000000000000';
+    String password = '';
+
+    if (server.protocol == 'VMESS') {
+      protocol = 'vmess';
+    } else if (server.protocol == 'VLESS') {
+      protocol = 'vless';
+    } else if (server.protocol == 'TROJAN') {
+      protocol = 'trojan';
+    } else if (server.protocol == 'SS') {
+      protocol = 'shadowsocks';
+    }
+
+    return '''
+{
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "google",
+        "address": "8.8.8.8"
+      },
+      {
+        "tag": "cloudflare",
+        "address": "1.1.1.1"
+      }
+    ],
+    "final": "google"
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "inet4_address": "172.19.0.1/30",
+      "auto_route": true,
+      "strict_route": true,
+      "stack": "system",
+      "sniff": true
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "$protocol",
+      "tag": "proxy",
+      "server": "${server.address}",
+      "server_port": ${server.port},
+      "uuid": "$uuid",
+      $password
+      "tls": {
+        "enabled": true,
+        "server_name": "${server.address}",
+        "insecure": false
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "block",
+      "tag": "block"
+    }
+  ],
+  "route": {
+    "final": "proxy",
+    "rules": [
+      {
+        "geoip": "private",
+        "outbound": "direct"
+      },
+      {
+        "protocol": "dns",
+        "outbound": "dns-out"
+      }
+    ]
+  }
+}
+''';
   }
 
   Widget _buildSettingsSection(String title, List<Widget> children) {
