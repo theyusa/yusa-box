@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 
 class VPNServer {
   final String id;

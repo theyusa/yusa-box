@@ -367,15 +367,15 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: _isConnected
-              ? [colorScheme.primary.withOpacity(0.9), colorScheme.primary]
-              : [colorScheme.primary.withOpacity(0.7), colorScheme.primary],
+              ? [colorScheme.primary.withValues(alpha: 0.9), colorScheme.primary]
+              : [colorScheme.primary.withValues(alpha: 0.7), colorScheme.primary],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.primary.withOpacity(0.3),
+            color: colorScheme.primary.withValues(alpha: 0.3),
             blurRadius: 20,
             spreadRadius: 5,
           ),
@@ -402,7 +402,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             serverName,
             style: TextStyle(
               fontSize: 16,
-              color: colorScheme.onPrimary.withOpacity(0.7),
+              color: colorScheme.onPrimary.withValues(alpha: 0.7),
             ),
             textAlign: TextAlign.center,
           ),
@@ -588,7 +588,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                           style: TextStyle(color: colorScheme.onSurfaceVariant),
                         ),
                         tileColor: isSelected 
-                            ? colorScheme.primaryContainer.withOpacity(0.3) 
+                            ? colorScheme.primaryContainer.withValues(alpha: 0.3) 
                             : colorScheme.surfaceContainer,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         onTap: () {
@@ -931,7 +931,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   // --- Settings View ---
 
   Widget _buildSettingsView(ThemeState themeState) {
-    final colorScheme = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
