@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'strings.dart';
 import 'providers/theme_provider.dart';
 import 'models/vpn_models.dart';
+import 'services/vpn_service.dart';
 
 enum SortOption { name, ping }
 
@@ -224,6 +225,7 @@ class VPNHomePage extends ConsumerStatefulWidget {
 }
 
 class _VPNHomePageState extends ConsumerState<VPNHomePage> {
+  final _vpnService = VpnService();
   bool _isConnected = false;
   int _currentIndex = 0;
   String _currentLanguage = AppStrings.tr;
@@ -256,6 +258,24 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     super.initState();
     _loadPreferences();
     _loadDummyData();
+    _listenToVpnStatus();
+  }
+
+  void _listenToVpnStatus() {
+    _vpnService.statusStream.listen((status) {
+      final state = status['state'] as int? ?? 0;
+      if (mounted) {
+        setState(() {
+          _isConnected = state == 2;
+          if (state == 2) {
+            _addLog('VPN Bağlandı');
+          } else if (state == 4) {
+            final message = status['message'] as String? ?? 'Hata';
+            _addLog('VPN Hatası: $message');
+          }
+        });
+      }
+    });
   }
 
   void _loadDummyData() {
@@ -476,18 +496,40 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           bottom: 24,
           right: 24,
           child: FloatingActionButton.large(
-            onPressed: () {
+            onPressed: () async {
                 if (_selectedServer == null && !_isConnected) {
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Lütfen önce bir server seçin!')),
                   );
                   return;
                 }
-                setState(() {
-                  _isConnected = !_isConnected;
-                  if (_isConnected) _addLog('Bağlandı: ${_selectedServer?.name}');
-                  else _addLog('Bağlantı kesildi');
-                });
+
+                if (_isConnected) {
+                  await _vpnService.stopVpn();
+                } else {
+                  if (!mounted) return;
+                  final scaffoldMessenger = ScaffoldMessenger.of(context);
+                  final hasPermission = await _vpnService.requestVpnPermission();
+                  if (!hasPermission) {
+                    if (mounted) {
+                      scaffoldMessenger.showSnackBar(
+                        const SnackBar(content: Text('VPN izni gerekli')),
+                      );
+                    }
+                    return;
+                  }
+
+                  if (_selectedServer != null) {
+                    final config = _generateSingboxConfig(_selectedServer!);
+                    final success = await _vpnService.startVpn(config);
+                    if (!success && mounted) {
+                      scaffoldMessenger.showSnackBar(
+                        const SnackBar(content: Text('VPN bağlantısı başarısız')),
+                      );
+                    }
+                  }
+                }
             },
             backgroundColor: _isConnected ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
             foregroundColor: _isConnected ? Theme.of(context).colorScheme.onError : Theme.of(context).colorScheme.onPrimary,
@@ -1473,6 +1515,68 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         ),
       ),
     );
+  }
+
+  String _generateSingboxConfig(VPNServer server) {
+    return '''
+{
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "google",
+        "address": "8.8.8.8"
+      },
+      {
+        "tag": "local",
+        "address": "local",
+        "detour": "direct"
+      }
+    ],
+    "final": "google"
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "inet4_address": "172.19.0.1/30",
+      "auto_route": true,
+      "strict_route": true,
+      "stack": "system",
+      "sniff": true
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "${server.protocol}",
+      "tag": "proxy",
+      "server": "${server.address}",
+      "server_port": ${server.port},
+      "uuid": "00000000-0000-0000-0000-000000000000",
+      "tls": {
+        "enabled": true,
+        "server_name": "${server.address}"
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "final": "proxy",
+    "rules": [
+      {
+        "geoip": "private",
+        "outbound": "direct"
+      }
+    ]
+  }
+}
+''';
   }
 
   Widget _buildSettingsSection(String title, List<Widget> children) {
