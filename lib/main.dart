@@ -814,7 +814,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
             child: Text(AppStrings.get('save')),
-          ],
+          ),
         ],
       ),
     );
