@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/vpn_models.dart';
 
@@ -46,10 +47,8 @@ class SubscriptionService {
   VPNServer? _parseVless(String link) {
     try {
       final uri = Uri.parse(link);
-      final userInfo = uri.userInfo;
       final host = uri.host;
       final port = uri.port;
-      final queryParams = uri.queryParameters;
       final fragment = uri.fragment; // Name usually here
 
       return VPNServer(
@@ -63,7 +62,7 @@ class SubscriptionService {
         // config: link, // Store raw link for now
       );
     } catch (e) {
-      print('Error parsing vless: $e');
+      debugPrint('Error parsing vless: $e');
       return null;
     }
   }
@@ -86,7 +85,7 @@ class SubscriptionService {
         // config: link,
       );
     } catch (e) {
-      print('Error parsing vmess: $e');
+      debugPrint('Error parsing vmess: $e');
       return null;
     }
   }

@@ -281,15 +281,19 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     _addLog('Abonelik güncelleniyor: ${sub.name}');
     try {
       final servers = await _subscriptionService.fetchServers(sub.url);
-      setState(() {
-        sub.servers = servers;
-        _addLog('${sub.name}: ${servers.length} server bulundu.');
-      });
+      if (mounted) {
+        setState(() {
+          sub.servers = servers;
+          _addLog('${sub.name}: ${servers.length} server bulundu.');
+        });
+      }
     } catch (e) {
       _addLog('Hata: ${e.toString()}');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Hata: ${e.toString()}')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Hata: ${e.toString()}')),
+        );
+      }
     }
   }
 
@@ -517,9 +521,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   }
                 } catch (e) {
                   _addLog('Hata: ${e.toString()}');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Bağlantı hatası: ${e.toString()}')),
-                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Bağlantı hatası: ${e.toString()}')),
+                    );
+                  }
                   setState(() => _isConnected = false);
                 }
             },
@@ -1048,13 +1054,13 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               final name = nameController.text.trim();
               final url = urlController.text.trim();
               
-              if (name.isNotEmpty && url.isNotEmpty) {
-                if (isEditing) {
-                  setState(() {
-                    sub!.name = name;
-                    sub!.url = url;
-                  });
-                } else {
+                if (name.isNotEmpty && url.isNotEmpty) {
+                  if (isEditing) {
+                    setState(() {
+                      sub.name = name;
+                      sub.url = url;
+                    });
+                  } else {
                   final newSub = VPNSubscription(
                     id: DateTime.now().millisecondsSinceEpoch.toString(),
                     name: name,
