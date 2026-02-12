@@ -354,8 +354,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   colorScheme.primary,
                 ]
               : [
-                  colorScheme.surfaceContainerHighest,
-                  colorScheme.surfaceContainerHigh,
+                  colorScheme.primary.withValues(alpha: 0.7),
+                  colorScheme.primary,
                 ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -363,8 +363,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: (_isConnected ? colorScheme.primary : colorScheme.surfaceContainerHighest)
-                .withValues(alpha: 0.3),
+            color: colorScheme.primary.withValues(alpha: 0.3),
             blurRadius: 20,
             spreadRadius: 5,
           ),
@@ -406,7 +405,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: colorScheme.onPrimary,
-                foregroundColor: _isConnected ? colorScheme.error : colorScheme.primary,
+                foregroundColor: colorScheme.primary,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -476,7 +475,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest,
+                    color: colorScheme.surfaceContainer,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(
@@ -501,7 +500,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   Icons.check_circle_outline,
                   color: colorScheme.primary,
                 ),
-                tileColor: colorScheme.surfaceContainerHighest,
+                tileColor: colorScheme.surfaceContainer,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 onTap: () {},
               );
@@ -1244,11 +1243,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             ),
           ),
           if (isExpanded)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Column(
-                children: children,
-              ),
+            Column(
+              children: children,
             ),
         ],
       ),
@@ -1264,17 +1260,14 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      child: ListTile(
-        leading: Icon(icon),
-        title: Text(title),
-        subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
-        trailing: trailing,
-        onTap: onTap,
-        tileColor: colorScheme.surfaceContainerHighest,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
+      trailing: trailing,
+      onTap: onTap,
+      tileColor: colorScheme.surfaceContainerHighest,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
   }
 
