@@ -2,18 +2,33 @@ name: Flutter Build
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, feature/* ]
   pull_request:
     branches: [ main, develop ]
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: false
+        default: 'release'
+        type: choice
+        options:
+          - debug
+          - release
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -39,13 +54,18 @@ jobs:
           fi
 
       - name: Build Android APK (debug)
+        if: github.event.inputs.build_type != 'release' || github.event.inputs.build_type == ''
         run: flutter build apk --debug
 
       - name: Build Android APK (release - no keystore)
+        if: github.event.inputs.build_type == 'release' || github.event.inputs.build_type == ''
         run: flutter build apk --release
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: apk
+          path: |
+            build/app/outputs/flutter-apk/app-debug.apk
+            build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
