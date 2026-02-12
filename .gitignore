@@ -33,3 +33,6 @@ android/gradlew.bat
 # IntelliJ
 .idea/
 *.iml
+*.apk
+libbox.aar
+temp_aar/

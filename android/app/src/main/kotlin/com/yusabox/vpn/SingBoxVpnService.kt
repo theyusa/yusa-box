@@ -9,13 +9,11 @@ import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
-import io.nekohasekai.libbox.BoxService
-import io.nekohasekai.libbox.Libbox
 
 class SingBoxVpnService : VpnService() {
 
     private var interfaceDescriptor: ParcelFileDescriptor? = null
-    private var boxService: BoxService? = null
+    private var boxService: Long? = null
 
     companion object {
         const val ACTION_START = "com.yusabox.vpn.START"
@@ -24,9 +22,19 @@ class SingBoxVpnService : VpnService() {
         const val CHANNEL_ID = "vpn_channel"
     }
 
+    init {
+        System.loadLibrary("box")
+    }
+
+    external fun setup(assetPath: String, tempPath: String, disableMemoryLimit: Boolean)
+    external fun newService(config: String, fd: Long): Long
+    external fun startService(ptr: Long)
+    external fun closeService(ptr: Long)
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        VpnServiceManager.service = this
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -45,36 +53,42 @@ class SingBoxVpnService : VpnService() {
     }
 
     private fun startVpn(config: String) {
-        // Start Foreground Service
+        VpnServiceManager.updateStatus(1, "Bağlanıyor...")
+
         startForeground(1, createNotification())
 
         try {
-            // Establish VPN Interface
             val builder = Builder()
             builder.setSession("YusaBox VPN")
             builder.addAddress("10.0.0.2", 32)
             builder.addRoute("0.0.0.0", 0)
             builder.setMtu(1500)
-            
+
             interfaceDescriptor = builder.establish()
 
             if (interfaceDescriptor != null) {
-                // Initialize Libbox
-                // Note: The actual initialization depends on the Libbox API.
-                // Assuming standard usage:
-                Libbox.setup(filesDir.absolutePath, filesDir.absolutePath, false)
-                boxService = Libbox.newService(config, interfaceDescriptor!!.fd.toLong())
-                boxService?.start()
+                setup(filesDir.absolutePath, filesDir.absolutePath, false)
+                boxService = newService(config, interfaceDescriptor!!.fd.toLong())
+                startService(boxService!!)
+
+                VpnServiceManager.updateStatus(2, "Bağlandı")
+                VpnServiceManager.startTrafficMonitoring()
+            } else {
+                VpnServiceManager.updateStatus(4, "VPN interface oluşturulamadı")
             }
         } catch (e: Exception) {
             e.printStackTrace()
+            VpnServiceManager.updateStatus(4, "Hata: ${e.message}")
             stopVpn()
         }
     }
 
     private fun stopVpn() {
+        VpnServiceManager.updateStatus(3, "Bağlantı kesiliyor...")
+        VpnServiceManager.stopTrafficMonitoring()
+
         try {
-            boxService?.close()
+            boxService?.let { closeService(it) }
             interfaceDescriptor?.close()
         } catch (e: Exception) {
             e.printStackTrace()
@@ -108,7 +122,6 @@ class SingBoxVpnService : VpnService() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("YusaBox VPN")
             .setContentText("VPN servisi çalışıyor...")
-            //.setSmallIcon(R.drawable.ic_notification) // Ensure this icon exists or use standard
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
             .build()
@@ -116,6 +129,7 @@ class SingBoxVpnService : VpnService() {
 
     override fun onDestroy() {
         stopVpn()
+        VpnServiceManager.service = null
         super.onDestroy()
     }
 }
