@@ -242,8 +242,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     '[INFO] V2Ray service initialized',
   ];
 
-  final Set<String> _expandedSections = {};
-
   static const List<Color> _seedColors = [
     Colors.red, Colors.pink, Colors.purple, Colors.deepPurple, Colors.indigo,
     Colors.blue, Colors.lightBlue, Colors.cyan, Colors.teal, Colors.green,
@@ -289,16 +287,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   Future<void> _savePreferences() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('language', _currentLanguage);
-  }
-
-  void _toggleSection(String section) {
-    setState(() {
-      if (_expandedSections.contains(section)) {
-        _expandedSections.remove(section);
-      } else {
-        _expandedSections.add(section);
-      }
-    });
   }
 
   void _addLog(String message) {
@@ -419,63 +407,71 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     return Stack(
       children: [
         SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 80), // Bottom padding for FAB
           child: Column(
             children: [
               // Dashboard Header with Log Button
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Dashboard',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Dashboard',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      Text(
+                        _isConnected ? 'Güvenli Bağlantı Aktif' : 'Bağlantı Yok',
+                        style: TextStyle(
+                          color: _isConnected ? Colors.green : Theme.of(context).colorScheme.error,
+                          fontWeight: FontWeight.w500,
                         ),
+                      ),
+                    ],
                   ),
-                  IconButton(
+                  IconButton.filledTonal(
                     onPressed: _showLogPanel,
-                    icon: const Icon(Icons.history_edu), // Log icon
-                    tooltip: 'Logları Göster',
+                    icon: const Icon(Icons.history_edu),
+                    tooltip: 'Loglar',
                   ),
                 ],
               ),
               const SizedBox(height: 20),
               
-              // New Connection Info Cards
+              // Grid Cards
               _buildDashboardGrid(),
               
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               
-              // Map Placeholder or Graph
+              // Session Info Card (Graph Replacement)
               Container(
-                height: 200,
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surfaceContainer,
                   borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.3)),
                 ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.public, size: 64, color: Theme.of(context).colorScheme.outlineVariant),
-                      const SizedBox(height: 8),
-                      Text('Trafik Grafiği / Harita', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                    ],
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildSessionStat('Oturum Süresi', _isConnected ? '00:42:15' : '--:--'),
+                    Container(height: 40, width: 1, color: Theme.of(context).colorScheme.outlineVariant),
+                    _buildSessionStat('Veri Kullanımı', _isConnected ? '17.8 MB' : '--'),
+                  ],
                 ),
               ),
-              
-              // Extra spacer for FAB
-              const SizedBox(height: 80),
             ],
           ),
         ),
         
-        // Floating Action Button for Connect
+        // Compact Floating Action Button
         Positioned(
-          bottom: 24,
-          right: 24,
-          child: FloatingActionButton.large(
+          bottom: 16,
+          right: 16,
+          child: FloatingActionButton(
             onPressed: () {
                 if (_selectedServer == null && !_isConnected) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -483,6 +479,74 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   );
                   return;
                 }
+                setState(() {
+                  _isConnected = !_isConnected;
+                  if (_isConnected) _addLog('Bağlandı: ${_selectedServer?.name}');
+                  else _addLog('Bağlantı kesildi');
+                });
+            },
+            backgroundColor: _isConnected ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
+            foregroundColor: _isConnected ? Theme.of(context).colorScheme.onError : Theme.of(context).colorScheme.onPrimary,
+            elevation: 4,
+            child: Icon(_isConnected ? Icons.power_settings_new : Icons.bolt, size: 28),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSessionStat(String label, String value) {
+    return Column(
+      children: [
+        Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+      ],
+    );
+  }
+
+  Widget _buildDashboardGrid() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final selectedServerName = _selectedServer != null 
+        ? '${_selectedServer!.flag} ${_selectedServer!.name}' 
+        : 'Seçili Değil';
+
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      childAspectRatio: 1.6, // Biraz daha yatay
+      children: [
+        _buildDashboardCard(
+          title: 'Durum',
+          value: _isConnected ? 'Bağlı' : 'Kesik',
+          icon: _isConnected ? Icons.check_circle : Icons.cancel,
+          color: _isConnected ? Colors.green : colorScheme.outline,
+        ),
+        _buildDashboardCard(
+          title: 'Server',
+          value: selectedServerName,
+          icon: Icons.dns,
+          color: colorScheme.primary,
+          isSmallText: true,
+        ),
+        _buildDashboardCard(
+          title: 'IP Adresi',
+          value: _isConnected ? '104.28.15.4' : '---.---.---.---',
+          icon: Icons.public,
+          color: Colors.blue,
+        ),
+        _buildDashboardCard(
+          title: 'Protokol',
+          value: 'VLESS + TLS',
+          icon: Icons.lock,
+          color: Colors.orange,
+        ),
+      ],
+    );
+  }
                 setState(() {
                   _isConnected = !_isConnected;
                   if (_isConnected) {
@@ -1479,54 +1543,33 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   Widget _buildSettingsSection(String title, List<Widget> children) {
-    final isExpanded = _expandedSections.contains(title);
     final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
-      elevation: 0, // Daha düz görünüm
-      margin: const EdgeInsets.only(bottom: 8), // Boşluk azaltıldı
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 16), // Bölümler arası boşluk
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
       ),
-      color: colorScheme.surfaceContainerLow, // Daha açık renk
+      color: colorScheme.surfaceContainerLow,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          InkWell(
-            onTap: () => _toggleSection(title),
-            borderRadius: isExpanded 
-                ? const BorderRadius.vertical(top: Radius.circular(12))
-                : BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), // Padding azaltıldı
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: colorScheme.onSurfaceVariant,
-                    size: 20,
-                  ),
-                ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text(
+              title.toUpperCase(),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.primary,
+                letterSpacing: 1.0,
               ),
             ),
           ),
-          if (isExpanded)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 0, 4, 8), // İçerik paddingi
-              child: Column(
-                children: children,
-              ),
-            ),
+          ...children,
+          const SizedBox(height: 8),
         ],
       ),
     );
