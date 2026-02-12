@@ -981,14 +981,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                 IconButton(
                   tooltip: 'Yenile',
                   icon: const Icon(Icons.refresh),
-                  onPressed: () {
-                    // Refresh logic
-                    setState(() {
-                      sub.refreshServers();
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${sub.name} güncellendi')),
-                    );
+                  onPressed: () async {
+                    await _refreshSubscription(sub);
                   },
                 ),
                 IconButton(

@@ -161,7 +161,6 @@ class SubscriptionService {
       final String uri = vlessUrl.replaceFirst('vless://', '');
       final String protocol = 'VLESS';
       
-      final String uuid = uri.split('@')[0];
       final String serverPart = uri.split('@')[1].split('?')[0];
       final List<String> serverInfo = serverPart.split(':');
       
@@ -212,7 +211,6 @@ class SubscriptionService {
       final String uri = trojanUrl.replaceFirst('trojan://', '');
       final String protocol = 'TROJAN';
       
-      final String password = uri.split('@')[0];
       final String serverPart = uri.split('@')[1].split('?')[0];
       final List<String> serverInfo = serverPart.split(':');
       
