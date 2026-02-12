@@ -236,6 +236,12 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   String? _selectedSubId; // null = All
   SortOption _currentSort = SortOption.name;
 
+  // Logs
+  final List<String> _logs = [
+    '[INFO] App started',
+    '[INFO] V2Ray service initialized',
+  ];
+
   final Set<String> _expandedSections = {};
 
   static const List<Color> _seedColors = [
@@ -295,6 +301,70 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     });
   }
 
+  void _addLog(String message) {
+    setState(() {
+      _logs.insert(0, '[${DateTime.now().hour}:${DateTime.now().minute}:${DateTime.now().second}] $message');
+    });
+  }
+
+  void _showLogPanel() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        builder: (_, controller) => Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Uygulama Logları', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.share),
+                          onPressed: () {},
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () => setState(() => _logs.clear()),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  controller: controller,
+                  itemCount: _logs.length,
+                  itemBuilder: (context, index) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: Text(
+                      _logs[index],
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeState = ref.watch(themeProvider);
@@ -346,78 +416,67 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   // --- VPN View ---
 
   Widget _buildVPNView() {
-    final selectedServerName = _selectedServer != null 
-        ? '${_selectedServer!.flag} ${_selectedServer!.name}' 
-        : AppStrings.get('not_connected');
-    
-    final displayServer = _isConnected ? selectedServerName : AppStrings.get('not_connected');
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
-          _buildConnectionCard(displayServer),
-          const SizedBox(height: 30),
-          _buildConnectionStats(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConnectionCard(String serverName) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(30),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: _isConnected
-              ? [colorScheme.primary.withValues(alpha: 0.9), colorScheme.primary]
-              : [colorScheme.primary.withValues(alpha: 0.7), colorScheme.primary],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return Stack(
+      children: [
+        SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              // Dashboard Header with Log Button
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Dashboard',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  IconButton(
+                    onPressed: _showLogPanel,
+                    icon: const Icon(Icons.history_edu), // Log icon
+                    tooltip: 'Logları Göster',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              
+              // New Connection Info Cards
+              _buildDashboardGrid(),
+              
+              const SizedBox(height: 20),
+              
+              // Map Placeholder or Graph
+              Container(
+                height: 200,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainer,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.public, size: 64, color: Theme.of(context).colorScheme.outlineVariant),
+                      const SizedBox(height: 8),
+                      Text('Trafik Grafiği / Harita', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+              ),
+              
+              // Extra spacer for FAB
+              const SizedBox(height: 80),
+            ],
+          ),
         ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.primary.withValues(alpha: 0.3),
-            blurRadius: 20,
-            spreadRadius: 5,
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Icon(
-            _isConnected ? Icons.security_rounded : Icons.security_outlined,
-            size: 80,
-            color: colorScheme.onPrimary,
-          ),
-          const SizedBox(height: 20),
-          Text(
-            _isConnected ? AppStrings.get('connected') : AppStrings.get('not_connected'),
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: colorScheme.onPrimary,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            serverName,
-            style: TextStyle(
-              fontSize: 16,
-              color: colorScheme.onPrimary.withValues(alpha: 0.7),
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 30),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              onPressed: () {
+        
+        // Floating Action Button for Connect
+        Positioned(
+          bottom: 24,
+          right: 24,
+          child: FloatingActionButton.large(
+            onPressed: () {
                 if (_selectedServer == null && !_isConnected) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Lütfen önce bir server seçin!')),
@@ -426,73 +485,101 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                 }
                 setState(() {
                   _isConnected = !_isConnected;
+                  if (_isConnected) _addLog('Bağlandı: ${_selectedServer?.name}');
+                  else _addLog('Bağlantı kesildi');
                 });
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colorScheme.onPrimary,
-                foregroundColor: colorScheme.primary,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              child: Text(
-                _isConnected ? AppStrings.get('disconnect') : AppStrings.get('connect'),
-                style: const TextStyle(
-                  fontSize: 18,
+            },
+            backgroundColor: _isConnected ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
+            foregroundColor: _isConnected ? Theme.of(context).colorScheme.onError : Theme.of(context).colorScheme.onPrimary,
+            elevation: 4,
+            shape: const CircleBorder(),
+            child: Icon(_isConnected ? Icons.power_settings_new : Icons.bolt, size: 48),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDashboardGrid() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final selectedServerName = _selectedServer != null 
+        ? '${_selectedServer!.flag} ${_selectedServer!.name}' 
+        : 'Seçili Değil';
+
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      childAspectRatio: 1.5,
+      children: [
+        _buildDashboardCard(
+          title: 'Durum',
+          value: _isConnected ? 'Bağlı' : 'Kesik',
+          icon: _isConnected ? Icons.check_circle : Icons.cancel,
+          color: _isConnected ? Colors.green : colorScheme.outline,
+        ),
+        _buildDashboardCard(
+          title: 'Server',
+          value: selectedServerName,
+          icon: Icons.dns,
+          color: colorScheme.primary,
+          isSmallText: true,
+        ),
+        _buildDashboardCard(
+          title: 'İndirme',
+          value: _isConnected ? '12.5 MB' : '0 KB',
+          icon: Icons.download,
+          color: Colors.blue,
+        ),
+        _buildDashboardCard(
+          title: 'Yükleme',
+          value: _isConnected ? '5.2 MB' : '0 KB',
+          icon: Icons.upload,
+          color: Colors.orange,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDashboardCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+    bool isSmallText = false,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Icon(icon, color: color, size: 28),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(value, 
+                style: TextStyle(
+                  fontSize: isSmallText ? 14 : 18, 
                   fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
+              Text(title, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+            ],
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildConnectionStats() {
-    // ... (Keep existing stats logic)
-    final colorScheme = Theme.of(context).colorScheme;
-    return Card(
-      elevation: 2,
-      color: colorScheme.surfaceContainer,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildStatItem(AppStrings.get('download'),
-                    _isConnected ? '12.5 MB/s' : '0 MB/s', Icons.download),
-                _buildStatItem(
-                    AppStrings.get('upload'), _isConnected ? '5.2 MB/s' : '0 MB/s', Icons.upload),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildStatItem(AppStrings.get('ping'), _isConnected ? (_selectedServer?.ping ?? '--') : '--', Icons.speed),
-                _buildStatItem(AppStrings.get('time'), _isConnected ? '02:15:30' : '--:--:--', Icons.timer),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatItem(String label, String value, IconData icon) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Column(
-      children: [
-        Icon(icon, color: colorScheme.primary),
-        const SizedBox(height: 8),
-        Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        Text(label, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
-      ],
     );
   }
 
@@ -1228,6 +1315,28 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             ),
           ]),
           const SizedBox(height: 20),
+          _buildSettingsSection('Log Ayarları', [
+            _buildSettingsTile(
+              Icons.bug_report,
+              'Log Seviyesi',
+              'Info',
+              () {},
+            ),
+            _buildSettingsTile(
+              Icons.save_alt,
+              'Logları Kaydet',
+              'Kapalı',
+              () {},
+              trailing: Switch(value: false, onChanged: (_) {}),
+            ),
+            _buildSettingsTile(
+              Icons.history,
+              'Log Panelini Aç',
+              '',
+              _showLogPanel,
+            ),
+          ]),
+          const SizedBox(height: 20),
           _buildSettingsSection(AppStrings.get('about'), [
             _buildSettingsTile(
               Icons.info,
@@ -1371,39 +1480,46 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: colorScheme.surfaceContainer,
+      elevation: 0, // Daha düz görünüm
+      margin: const EdgeInsets.only(bottom: 8), // Boşluk azaltıldı
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      color: colorScheme.surfaceContainerLow, // Daha açık renk
       child: Column(
         children: [
           InkWell(
             onTap: () => _toggleSection(title),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            borderRadius: isExpanded 
+                ? const BorderRadius.vertical(top: Radius.circular(12))
+                : BorderRadius.circular(12),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), // Padding azaltıldı
               child: Row(
                 children: [
                   Expanded(
-                        child: Text(
-                              title,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: colorScheme.onSurface,
-                              ),
-                        ),
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
                   ),
                   Icon(
-                        isExpanded ? Icons.expand_less : Icons.expand_more,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
+                    isExpanded ? Icons.expand_less : Icons.expand_more,
+                    color: colorScheme.onSurfaceVariant,
+                    size: 20,
+                  ),
                 ],
               ),
             ),
           ),
           if (isExpanded)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.fromLTRB(4, 0, 4, 8), // İçerik paddingi
               child: Column(
                 children: children,
               ),
@@ -1422,17 +1538,16 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      child: ListTile(
-        leading: Icon(icon),
-        title: Text(title),
-        subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
-        trailing: trailing,
-        onTap: onTap,
-        tileColor: colorScheme.surfaceContainerHighest,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
+    return ListTile(
+      leading: Icon(icon, size: 22, color: colorScheme.primary),
+      title: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+      subtitle: subtitle.isNotEmpty ? Text(subtitle, style: const TextStyle(fontSize: 12)) : null,
+      trailing: trailing,
+      onTap: onTap,
+      dense: true, // Kompakt mod
+      visualDensity: VisualDensity.compact,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
     );
   }
 }
