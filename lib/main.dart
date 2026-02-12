@@ -5,11 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'strings.dart';
 import 'providers/theme_provider.dart';
 
-/// Main entry point of application
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize SharedPreferences for language settings
   final prefs = await SharedPreferences.getInstance();
   final language = prefs.getString('language') ?? AppStrings.tr;
 
@@ -20,11 +18,10 @@ void main() async {
   runApp(
     const ProviderScope(
       child: MyApp(),
-    ),
-  );
+    );
+  }
 }
 
-/// Root widget of application
 class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
@@ -35,21 +32,17 @@ class MyApp extends ConsumerWidget {
 
     return DynamicColorBuilder(
       builder: (lightDynamic, darkDynamic) {
-        // Generate color schemes
         ColorScheme lightScheme;
         ColorScheme darkScheme;
 
-        // Check if dynamic color is available and enabled
         final useDynamicColor = themeState.isDynamicColorEnabled &&
             lightDynamic != null &&
             darkDynamic != null;
 
         if (useDynamicColor) {
-          // Use dynamic color (Monet) - harmonize and then apply contrast
           final lightHarmonized = lightDynamic.harmonized();
           final darkHarmonized = darkDynamic.harmonized();
 
-          // Apply contrast level using fromSeed with harmonized palette
           lightScheme = ColorScheme.fromSeed(
             seedColor: lightHarmonized.primary,
             brightness: Brightness.light,
@@ -62,7 +55,6 @@ class MyApp extends ConsumerWidget {
             contrastLevel: themeState.contrastLevel,
           );
         } else {
-          // Use seed color with contrast level
           lightScheme = ColorScheme.fromSeed(
             seedColor: themeState.seedColor,
             brightness: Brightness.light,
@@ -76,7 +68,6 @@ class MyApp extends ConsumerWidget {
           );
         }
 
-        // Apply true black (OLED) mode if enabled
         final darkSchemeModified = _applyTrueBlackIfEnabled(
           darkScheme,
           themeState.isTrueBlackEnabled,
@@ -93,141 +84,134 @@ class MyApp extends ConsumerWidget {
     );
   }
 
-  /// Build light theme data
-  ThemeData _buildLightTheme(ColorScheme colorScheme) {
-    return ThemeData(
-      colorScheme: colorScheme,
-      useMaterial3: true,
-      scaffoldBackgroundColor: colorScheme.surface,
-      cardTheme: CardThemeData(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        color: colorScheme.surface,
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      ),
-      appBarTheme: AppBarTheme(
-        centerTitle: true,
+ThemeData _buildLightTheme(ColorScheme colorScheme) {
+  return ThemeData(
+    colorScheme: colorScheme,
+    useMaterial3: true,
+    scaffoldBackgroundColor: colorScheme.surface,
+    cardTheme: CardThemeData(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: colorScheme.surface,
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
         elevation: 0,
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
-      ),
-      dialogTheme: DialogThemeData(
-        backgroundColor: colorScheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: colorScheme.surfaceContainerHighest,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colorScheme.outline),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colorScheme.outline),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: colorScheme.primary,
-            width: 2,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Build dark theme data with support for true black (OLED) mode
-  ThemeData _buildDarkTheme(ColorScheme colorScheme) {
-    return ThemeData(
-      colorScheme: colorScheme,
-      useMaterial3: true,
-      scaffoldBackgroundColor: colorScheme.surface,
-      cardTheme: CardThemeData(
-        elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        color: colorScheme.surfaceContainerHighest,
       ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    ),
+    appBarTheme: AppBarTheme(
+      centerTitle: true,
+      elevation: 0,
+      backgroundColor: colorScheme.surface,
+      foregroundColor: colorScheme.onSurface,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: colorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: colorScheme.surfaceContainerHighest,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: colorScheme.outline),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: colorScheme.outline),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: colorScheme.primary,
+          width: 2,
         ),
       ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      ),
-      appBarTheme: AppBarTheme(
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
-      ),
-      dialogTheme: DialogThemeData(
-        backgroundColor: colorScheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: colorScheme.surfaceContainerHighest,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colorScheme.outline),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colorScheme.outline),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: colorScheme.primary,
-            width: 2,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Apply true black (OLED) override if enabled
-  ///
-  /// When true black is enabled, overrides all surface variants to black/dark gray (0xFF000000/0xFF0A0A0A/0xFF141414) for OLED displays.
-  ColorScheme _applyTrueBlackIfEnabled(
-    ColorScheme darkScheme,
-    bool isEnabled,
-  ) {
-    if (!isEnabled) {
-      return darkScheme;
-    }
-
-    const black = Color(0xFF000000);
-    const darkGray = Color(0xFF0A0A0A);
-    const lightGray = Color(0xFF141414);
-
-    return darkScheme.copyWith(
-      surface: black,
-      surfaceContainer: darkGray,
-      surfaceContainerLow: darkGray,
-      surfaceContainerLowest: black,
-      surfaceContainerHigh: lightGray,
-      surfaceContainerHighest: lightGray,
-    );
-  }
+    ),
+  );
 }
 
-/// VPN HomePage - Main application screen
+ThemeData _buildDarkTheme(ColorScheme colorScheme) {
+  return ThemeData(
+    colorScheme: colorScheme,
+    useMaterial3: true,
+    scaffoldBackgroundColor: colorScheme.surface,
+    cardTheme: CardThemeData(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: colorScheme.surfaceContainerHighest,
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    ),
+    appBarTheme: AppBarTheme(
+      centerTitle: true,
+      elevation: 0,
+      backgroundColor: colorScheme.surface,
+      foregroundColor: colorScheme.onSurface,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: colorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: colorScheme.surfaceContainerHighest,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: colorScheme.outline),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: colorScheme.outline),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: colorScheme.primary,
+          width: 2,
+        ),
+      ),
+    ),
+  );
+}
+
+ColorScheme _applyTrueBlackIfEnabled(
+  ColorScheme darkScheme,
+  bool isEnabled,
+) {
+  if (!isEnabled) {
+    return darkScheme;
+  }
+
+  const black = Color(0xFF000000);
+  const darkGray = Color(0xFF0A0A0A);
+  const lightGray = Color(0xFF141414);
+
+  return darkScheme.copyWith(
+    surface: black,
+    surfaceContainer: darkGray,
+    surfaceContainerLow: darkGray,
+    surfaceContainerLowest: black,
+    surfaceContainerHigh: lightGray,
+    surfaceContainerHighest: lightGray,
+  );
+}
+
 class VPNHomePage extends ConsumerStatefulWidget {
   const VPNHomePage({super.key});
 
@@ -239,8 +223,10 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   bool _isConnected = false;
   int _currentIndex = 0;
   String _currentLanguage = AppStrings.tr;
+  String _selectedServer = '';
 
   final Set<String> _expandedSections = {};
+}
 
   void _toggleSection(String section) {
     setState(() {
@@ -450,64 +436,104 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                       fontWeight: FontWeight.bold,
                     ),
               ),
-              TextButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.edit),
-                label: const Text('Düzenle'),
+              IconButton(
+                onPressed: () => _showServerSettingsMenu(),
+                icon: const Icon(Icons.more_vert),
               ),
             ],
           ),
         ),
         Expanded(
-          child: ListView.separated(
+          child: ListView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             itemCount: servers.length,
-            separatorBuilder: (context, index) => Divider(
-              color: colorScheme.onSurface.withValues(alpha: 0.1),
-              height: 1,
-            ),
             itemBuilder: (context, index) {
               final server = servers[index];
+              final serverName = server['name'] ?? '';
+              final isSelected = _selectedServer == serverName;
 
-              return ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                leading: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainer,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Text(
-                      server['flag'] ?? '',
-                      style: const TextStyle(fontSize: 28),
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  leading: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: Text(
+                        server['flag'] ?? '',
+                        style: const TextStyle(fontSize: 28),
+                      ),
                     ),
                   ),
-                ),
-                title: Text(
-                  server['name'] ?? '',
+                  title: Text(serverName),
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
-                ),
-                subtitle: Text(
-                  '${server['city']} • ${server['ping']}',
+                  subtitle: Text('${server['city']} • ${server['ping']}'),
                   style: TextStyle(color: colorScheme.onSurfaceVariant),
+                  ),
+                  trailing: Icon(
+                    isSelected ? Icons.check_circle : Icons.check_circle_outline,
+                    color: isSelected ? colorScheme.primary : colorScheme.outline,
+                  ),
+                  tileColor: colorScheme.surfaceContainer,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  onTap: () {
+                    setState(() {
+                      _selectedServer = serverName;
+                    });
+                  },
                 ),
-                trailing: Icon(
-                  Icons.check_circle_outline,
-                  color: colorScheme.primary,
-                ),
-                tileColor: colorScheme.surfaceContainer,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                onTap: () {},
               );
             },
           ),
         ),
       ],
+    );
+  }
+
+  void _showServerSettingsMenu() {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: colorScheme.surfaceContainer,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        contentPadding: EdgeInsets.zero,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.edit, color: colorScheme.primary),
+              title: Text('Düzenle', style: TextStyle(color: colorScheme.onSurface)),
+              onTap: () {
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.content_copy, color: colorScheme.primary),
+              title: Text('Kopyala', style: TextStyle(color: colorScheme.onSurface)),
+              onTap: () {
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: Text('Sil', style: const TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -585,10 +611,9 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              ElevatedButton.icon(
-                onPressed: () => _showAddSubscriptionDialog(),
+              IconButton(
+                onPressed: () => _showSubscriptionMenu(null),
                 icon: const Icon(Icons.add),
-                label: Text(AppStrings.get('add_subscription')),
               ),
             ],
           ),
@@ -651,6 +676,67 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     }).toList();
   }
 
+  void _showSubscriptionMenu(Map<String, dynamic>? subscription) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    if (subscription == null) {
+      _showAddSubscriptionDialog();
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: colorScheme.surfaceContainer,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        contentPadding: EdgeInsets.zero,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.edit, color: colorScheme.primary),
+              title: Text(
+                AppStrings.get('edit'),
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.sync, color: colorScheme.primary),
+              title: Text(
+                'Abonelik Linkini Güncelle',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.content_copy, color: colorScheme.primary),
+              title: Text('Kopyala', style: TextStyle(color: colorScheme.onSurface)),
+              onTap: () {
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: Text(
+                'Sil',
+                style: const TextStyle(color: Colors.red),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _showDeleteDialog(subscription!);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showAddSubscriptionDialog() {
     final nameController = TextEditingController();
     final urlController = TextEditingController();
@@ -665,10 +751,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           children: [
             Icon(Icons.add_circle_outline, color: colorScheme.primary),
             const SizedBox(width: 12),
-            Text(
-              AppStrings.get('add_subscription'),
-              style: TextStyle(color: colorScheme.onSurface),
-            ),
+            Text(AppStrings.get('add_subscription'), style: TextStyle(color: colorScheme.onSurface)),
           ],
         ),
         content: Column(
@@ -732,15 +815,12 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(
-              AppStrings.get('cancel'),
-              style: TextStyle(color: colorScheme.primary),
-            ),
+            child: Text(AppStrings.get('cancel'), style: TextStyle(color: colorScheme.primary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
             child: Text(AppStrings.get('save')),
-          ),
+          ],
         ],
       ),
     );
@@ -754,21 +834,12 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       builder: (context) => AlertDialog(
         backgroundColor: colorScheme.surfaceContainer,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(
-          AppStrings.get('warning'),
-          style: TextStyle(color: colorScheme.onSurface),
-        ),
-        content: Text(
-          AppStrings.get('delete_confirm'),
-          style: TextStyle(color: colorScheme.onSurface),
-        ),
+        title: Text(AppStrings.get('warning'), style: TextStyle(color: colorScheme.onSurface)),
+        content: Text(AppStrings.get('delete_confirm'), style: TextStyle(color: colorScheme.onSurface)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(
-              AppStrings.get('cancel'),
-              style: TextStyle(color: colorScheme.primary),
-            ),
+            child: Text(AppStrings.get('cancel'), style: TextStyle(color: colorScheme.primary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
@@ -779,81 +850,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             child: Text(AppStrings.get('delete')),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showSubscriptionMenu(Map<String, dynamic> subscription) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainer,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                margin: const EdgeInsets.symmetric(vertical: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colorScheme.onSurface.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(left: 20, right: 20, bottom: 12),
-                child: Text(
-                  subscription['name'] as String? ?? '',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
-                      ),
-                ),
-              ),
-              Divider(
-                color: colorScheme.onSurface.withValues(alpha: 0.1),
-              ),
-              ListTile(
-                leading: Icon(Icons.edit, color: colorScheme.primary),
-                title: Text(
-                  AppStrings.get('edit'),
-                  style: TextStyle(color: colorScheme.onSurface),
-                ),
-                tileColor: colorScheme.surfaceContainerHighest,
-                onTap: () => Navigator.pop(context),
-              ),
-              ListTile(
-                leading: Icon(Icons.refresh, color: colorScheme.primary),
-                title: Text(
-                  AppStrings.get('test_connection'),
-                  style: TextStyle(color: colorScheme.onSurface),
-                ),
-                tileColor: colorScheme.surfaceContainerHighest,
-                onTap: () => Navigator.pop(context),
-              ),
-              ListTile(
-                leading: const Icon(Icons.delete, color: Colors.red),
-                title: Text(
-                  AppStrings.get('delete'),
-                  style: const TextStyle(color: Colors.red),
-                ),
-                tileColor: colorScheme.surfaceContainerHighest,
-                onTap: () {
-                  Navigator.pop(context);
-                  _showDeleteDialog(subscription);
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -879,7 +875,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               () => _showThemeModeDialog(),
               trailing: Icon(
                 _getThemeModeIcon(themeState.themeMode),
-                color: Theme.of(context).colorScheme.primary,
+                color: colorScheme.onSurface,
               ),
             ),
             _buildSettingsTile(
@@ -890,8 +886,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               trailing: Switch(
                 value: themeState.isDynamicColorEnabled,
                 onChanged: (_) => ref.read(themeProvider.notifier).toggleDynamicColor(),
+                ),
               ),
-            ),
             if (!themeState.isDynamicColorEnabled)
               _buildSettingsTile(
                 Icons.color_lens,
@@ -915,8 +911,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               trailing: Switch(
                 value: themeState.isTrueBlackEnabled,
                 onChanged: (_) => ref.read(themeProvider.notifier).toggleTrueBlack(),
+                ),
               ),
-            ),
             _buildSettingsTile(
               Icons.accessibility,
               'Yüksek Kontrast',
@@ -925,8 +921,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               trailing: Switch(
                 value: themeState.contrastLevel > 0,
                 onChanged: (_) => ref.read(themeProvider.notifier).toggleContrastMode(),
+                ),
               ),
-            ),
           ]),
           const SizedBox(height: 20),
           _buildSettingsSection('VPN Ayarları', [
@@ -1080,34 +1076,26 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
   void _showThemeModeDialog() {
     final themeState = ref.read(themeProvider);
-    final colorScheme = Theme.of(context).colorScheme;
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: colorScheme.surfaceContainer,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(
-          'Tema Modu',
-          style: TextStyle(color: colorScheme.onSurface),
-        ),
+        title: const Text('Tema Modu'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: AppThemeMode.values.map((mode) {
             return ListTile(
-              title: Text(
-                mode.displayName,
-                style: TextStyle(color: colorScheme.onSurface),
-              ),
-              leading: Icon(_getThemeModeIcon(mode)),
-              trailing: themeState.themeMode == mode
-                  ? Icon(Icons.check_circle, color: colorScheme.primary)
-                  : null,
-              tileColor: colorScheme.surfaceContainerHighest,
-              onTap: () {
-                ref.read(themeProvider.notifier).setThemeMode(mode);
-                Navigator.pop(context);
-              },
+                  title: Text(mode.displayName),
+                  leading: Icon(_getThemeModeIcon(mode)),
+                  trailing: themeState.themeMode == mode
+                      ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
+                      : null,
+                  onTap: () {
+                    ref.read(themeProvider.notifier).setThemeMode(mode);
+                    Navigator.pop(context);
+                  },
             );
           }).toList(),
         ),
@@ -1117,17 +1105,13 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
   void _showSeedColorDialog(ThemeState themeState) {
     final selectedColor = themeState.seedColor;
-    final colorScheme = Theme.of(context).colorScheme;
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: colorScheme.surfaceContainer,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(
-          'Tohum Rengi Seç',
-          style: TextStyle(color: colorScheme.onSurface),
-        ),
+        title: const Text('Tohum Rengi Seç'),
         content: SizedBox(
           width: double.maxFinite,
           child: GridView.builder(
@@ -1147,11 +1131,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                 },
                 child: Container(
                   decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                    border: selectedColor == color
-                        ? Border.all(color: Colors.white, width: 3)
-                        : null,
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: selectedColor == color
+                            ? Border.all(color: Colors.white, width: 3)
+                            : null,
                   ),
                 ),
               );
@@ -1163,35 +1147,26 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   void _showLanguageDialog() {
-    final colorScheme = Theme.of(context).colorScheme;
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: colorScheme.surfaceContainer,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Row(
           children: [
-            Icon(Icons.language_outlined, color: colorScheme.primary),
+            Icon(Icons.language_outlined, color: Theme.of(context).colorScheme.primary),
             const SizedBox(width: 12),
-            Text(
-              AppStrings.get('language'),
-              style: TextStyle(color: colorScheme.onSurface),
-            ),
+            Text(AppStrings.get('language')),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: AppStrings.supportedLanguages.map((lang) {
             return ListTile(
-              title: Text(
-                AppStrings.getLanguageName(lang),
-                style: TextStyle(color: colorScheme.onSurface),
-              ),
+              title: Text(AppStrings.getLanguageName(lang)),
               trailing: _currentLanguage == lang
-                  ? Icon(Icons.check_circle, color: colorScheme.primary)
+                  ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
                   : null,
-              tileColor: colorScheme.surfaceContainerHighest,
               onTap: () {
                 setState(() {
                   _currentLanguage = lang;
@@ -1225,26 +1200,29 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
-                      ),
-                    ),
+                        child: Text(
+                              title,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onSurface,
+                              ),
+                        ),
                   ),
                   Icon(
-                    isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                        isExpanded ? Icons.expand_less : Icons.expand_more,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                 ],
               ),
             ),
           ),
           if (isExpanded)
-            Column(
-              children: children,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                children: children,
+              ),
             ),
         ],
       ),
@@ -1260,14 +1238,17 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
-      trailing: trailing,
-      onTap: onTap,
-      tileColor: colorScheme.surfaceContainerHighest,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      child: ListTile(
+        leading: Icon(icon),
+        title: Text(title),
+        subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
+        trailing: trailing,
+        onTap: onTap,
+        tileColor: colorScheme.surfaceContainerHighest,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
     );
   }
 
