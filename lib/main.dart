@@ -231,12 +231,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   int _currentIndex = 0;
   String _currentLanguage = AppStrings.tr;
 
-  final Set<String> _expandedSections = {
-    'Kişiselleştirme',
-    'VPN Ayarları',
-    'V2Ray Ayarları',
-    'SingBox Ayarları',
-  };
+  final Set<String> _expandedSections = {};
 
   void _toggleSection(String section) {
     setState(() {
@@ -417,34 +412,127 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       {'flag': '🇩🇪', 'name': 'Germany', 'city': 'Frankfurt', 'ping': '28ms'},
     ];
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              AppStrings.get('select_server'),
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+    return InkWell(
+      onTap: () => _showServerBottomSheet(servers),
+      borderRadius: BorderRadius.circular(16),
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                AppStrings.get('select_server'),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            ...servers.map((server) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Text(
-                    server['flag'] ?? '',
-                    style: const TextStyle(fontSize: 24),
-                  ),
-                  title: Text(server['name'] ?? ''),
-                  subtitle: Text('${server['city']} • ${server['ping']}'),
-                  onTap: () {},
-                )),
-          ],
+              Icon(Icons.keyboard_arrow_down, color: Theme.of(context).colorScheme.primary),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  void _showServerBottomSheet(List<Map<String, String>> servers) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) {
+          final colorScheme = Theme.of(context).colorScheme;
+          final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
+
+          return Container(
+            decoration: BoxDecoration(
+              color: isTrueBlack ? const Color(0xFF0A0A0A) : colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colorScheme.onSurface.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Server Listesi',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () {},
+                        icon: const Icon(Icons.edit),
+                        label: const Text('Düzenle'),
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(
+                  color: colorScheme.onSurface.withValues(alpha: 0.1),
+                ),
+                Expanded(
+                  child: ListView.separated(
+                    controller: scrollController,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: servers.length,
+                    separatorBuilder: (context, index) => Divider(
+                      color: colorScheme.onSurface.withValues(alpha: 0.1),
+                      height: 1,
+                    ),
+                    itemBuilder: (context, index) {
+                      final server = servers[index];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        leading: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: isTrueBlack ? const Color(0xFF141414) : colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Text(
+                              server['flag'] ?? '',
+                              style: const TextStyle(fontSize: 28),
+                            ),
+                          ),
+                        ),
+                        title: Text(server['name'] ?? ''),
+                        subtitle: Text('${server['city']} • ${server['ping']}'),
+                        trailing: Icon(
+                          Icons.check_circle_outline,
+                          color: colorScheme.primary,
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -582,16 +670,22 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   void _showAddSubscriptionDialog() {
     final nameController = TextEditingController();
     final urlController = TextEditingController();
+    final colorScheme = Theme.of(context).colorScheme;
+    final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: isTrueBlack ? const Color(0xFF0A0A0A) : colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Row(
           children: [
-            Icon(Icons.add_circle_outline, color: Theme.of(context).colorScheme.primary),
+            Icon(Icons.add_circle_outline, color: colorScheme.primary),
             const SizedBox(width: 12),
-            Text(AppStrings.get('add_subscription')),
+            Text(
+              AppStrings.get('add_subscription'),
+              style: TextStyle(color: colorScheme.onSurface),
+            ),
           ],
         ),
         content: Column(
@@ -599,51 +693,55 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           children: [
             TextField(
               controller: nameController,
+              style: TextStyle(color: colorScheme.onSurface),
               decoration: InputDecoration(
                 labelText: AppStrings.get('subscription_name'),
+                labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                 prefixIcon: const Icon(Icons.bookmark),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
+                  borderSide: BorderSide(color: colorScheme.outline),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
+                  borderSide: BorderSide(color: colorScheme.outline),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(
-                    color: Theme.of(context).colorScheme.primary,
+                    color: colorScheme.primary,
                     width: 2,
                   ),
                 ),
                 filled: true,
-                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                fillColor: isTrueBlack ? const Color(0xFF141414) : colorScheme.surfaceContainerHighest,
               ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: urlController,
+              style: TextStyle(color: colorScheme.onSurface),
               decoration: InputDecoration(
                 labelText: AppStrings.get('subscription_url'),
+                labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                 prefixIcon: const Icon(Icons.link),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
+                  borderSide: BorderSide(color: colorScheme.outline),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
+                  borderSide: BorderSide(color: colorScheme.outline),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(
-                    color: Theme.of(context).colorScheme.primary,
+                    color: colorScheme.primary,
                     width: 2,
                   ),
                 ),
                 filled: true,
-                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                fillColor: isTrueBlack ? const Color(0xFF141414) : colorScheme.surfaceContainerHighest,
               ),
             ),
           ],
@@ -651,7 +749,10 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(AppStrings.get('cancel')),
+            child: Text(
+              AppStrings.get('cancel'),
+              style: TextStyle(color: colorScheme.primary),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
@@ -663,12 +764,15 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   void _showSubscriptionMenu(Map<String, dynamic> subscription) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
+          color: isTrueBlack ? const Color(0xFF0A0A0A) : colorScheme.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: SafeArea(
@@ -680,7 +784,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                  color: colorScheme.onSurface.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -690,20 +794,29 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   subscription['name'] as String? ?? '',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
                       ),
                 ),
               ),
               Divider(
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+                color: colorScheme.onSurface.withValues(alpha: 0.1),
               ),
               ListTile(
-                leading: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
-                title: Text(AppStrings.get('edit')),
+                leading: Icon(Icons.edit, color: colorScheme.primary),
+                title: Text(
+                  AppStrings.get('edit'),
+                  style: TextStyle(color: colorScheme.onSurface),
+                ),
+                tileColor: isTrueBlack ? const Color(0xFF141414) : null,
                 onTap: () => Navigator.pop(context),
               ),
               ListTile(
-                leading: Icon(Icons.refresh, color: Theme.of(context).colorScheme.primary),
-                title: Text(AppStrings.get('test_connection')),
+                leading: Icon(Icons.refresh, color: colorScheme.primary),
+                title: Text(
+                  AppStrings.get('test_connection'),
+                  style: TextStyle(color: colorScheme.onSurface),
+                ),
+                tileColor: isTrueBlack ? const Color(0xFF141414) : null,
                 onTap: () => Navigator.pop(context),
               ),
               ListTile(
@@ -712,6 +825,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   AppStrings.get('delete'),
                   style: const TextStyle(color: Colors.red),
                 ),
+                tileColor: isTrueBlack ? const Color(0xFF141414) : null,
                 onTap: () {
                   Navigator.pop(context);
                   _showDeleteDialog(subscription);
@@ -1090,10 +1204,12 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   Widget _buildSettingsSection(String title, List<Widget> children) {
     final isExpanded = _expandedSections.contains(title);
     final colorScheme = Theme.of(context).colorScheme;
+    final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
 
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: isTrueBlack ? const Color(0xFF0A0A0A) : null,
       child: Column(
         children: [
           InkWell(
@@ -1123,8 +1239,15 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           ),
           if (isExpanded)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Column(children: children),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Column(
+                children: children.map((child) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: child,
+                  );
+                }).toList(),
+              ),
             ),
         ],
       ),
@@ -1138,12 +1261,17 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     VoidCallback onTap, {
     Widget? trailing,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
+
     return ListTile(
       leading: Icon(icon),
       title: Text(title),
       subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
       trailing: trailing,
       onTap: onTap,
+      tileColor: isTrueBlack ? const Color(0xFF141414) : null,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
   }
 
