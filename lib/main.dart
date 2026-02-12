@@ -231,6 +231,23 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   int _currentIndex = 0;
   String _currentLanguage = AppStrings.tr;
 
+  final Set<String> _expandedSections = {
+    'Kişiselleştirme',
+    'VPN Ayarları',
+    'V2Ray Ayarları',
+    'SingBox Ayarları',
+  };
+
+  void _toggleSection(String section) {
+    setState(() {
+      if (_expandedSections.contains(section)) {
+        _expandedSections.remove(section);
+      } else {
+        _expandedSections.add(section);
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -709,16 +726,28 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   void _showDeleteDialog(Map<String, dynamic> subscription) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(AppStrings.get('warning')),
-        content: Text(AppStrings.get('delete_confirm')),
+        title: Text(
+          AppStrings.get('warning'),
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
+        content: Text(
+          AppStrings.get('delete_confirm'),
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(AppStrings.get('cancel')),
+            child: Text(
+              AppStrings.get('cancel'),
+              style: TextStyle(color: colorScheme.primary),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
@@ -831,6 +860,12 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               '1400',
               () {},
             ),
+            _buildSettingsTile(
+              Icons.public,
+              'Proxy Modu',
+              'Tüm Trafik',
+              () {},
+            ),
           ]),
           const SizedBox(height: 20),
           _buildSettingsSection('V2Ray Ayarları', [
@@ -866,6 +901,55 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               () {},
               trailing: Switch(value: false, onChanged: (_) {}),
             ),
+            _buildSettingsTile(
+              Icons.format_list_numbered,
+              'Sniffing',
+              'Açık',
+              () {},
+              trailing: Switch(value: true, onChanged: (_) {}),
+            ),
+          ]),
+          const SizedBox(height: 20),
+          _buildSettingsSection('SingBox Ayarları', [
+            _buildSettingsTile(
+              Icons.route,
+              'Yönlendirme Modu',
+              'Tüm Trafik',
+              () {},
+            ),
+            _buildSettingsTile(
+              Icons.dns,
+              'DNS Modu',
+              'Özel',
+              () {},
+            ),
+            _buildSettingsTile(
+              Icons.security,
+              'Tun Modu',
+              'Açık',
+              () {},
+              trailing: Switch(value: true, onChanged: (_) {}),
+            ),
+            _buildSettingsTile(
+              Icons.speed,
+              'MTU Ayarı',
+              '1400',
+              () {},
+            ),
+            _buildSettingsTile(
+              Icons.stacked_line_chart,
+              'Bypass LAN',
+              'Açık',
+              () {},
+              trailing: Switch(value: true, onChanged: (_) {}),
+            ),
+            _buildSettingsTile(
+              Icons.wifi_tethering,
+              'Hotspot Paylaşımı',
+              'Kapalı',
+              () {},
+              trailing: Switch(value: false, onChanged: (_) {}),
+            ),
           ]),
           const SizedBox(height: 20),
           _buildSettingsSection(AppStrings.get('about'), [
@@ -873,6 +957,12 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               Icons.info,
               AppStrings.get('version'),
               '1.0.1',
+              () {},
+            ),
+            _buildSettingsTile(
+              Icons.code,
+              'GitHub',
+              'github.com',
               () {},
             ),
           ]),
@@ -998,26 +1088,46 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   Widget _buildSettingsSection(String title, List<Widget> children) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            title,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade600,
+    final isExpanded = _expandedSections.contains(title);
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () => _toggleSection(title),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    isExpanded ? Icons.expand_less : Icons.expand_more,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Column(children: children),
-        ),
-      ],
+          if (isExpanded)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Column(children: children),
+            ),
+        ],
+      ),
     );
   }
 
