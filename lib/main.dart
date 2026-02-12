@@ -203,7 +203,7 @@ class MyApp extends ConsumerWidget {
 
   /// Apply true black (OLED) override if enabled
   ///
-  /// When true black is enabled, overrides surface to pure black (0xFF000000) for OLED displays.
+  /// When true black is enabled, overrides all surface variants to black/dark gray (0xFF000000/0xFF0A0A0A/0xFF141414) for OLED displays.
   ColorScheme _applyTrueBlackIfEnabled(
     ColorScheme darkScheme,
     bool isEnabled,
@@ -212,8 +212,17 @@ class MyApp extends ConsumerWidget {
       return darkScheme;
     }
 
+    const black = Color(0xFF000000);
+    const darkGray = Color(0xFF0A0A0A);
+    const lightGray = Color(0xFF141414);
+
     return darkScheme.copyWith(
-      surface: const Color(0xFF000000),
+      surface: black,
+      surfaceContainer: darkGray,
+      surfaceContainerLow: darkGray,
+      surfaceContainerLowest: black,
+      surfaceContainerHigh: lightGray,
+      surfaceContainerHighest: lightGray,
     );
   }
 }
@@ -333,20 +342,29 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   Widget _buildConnectionCard(String selectedServer) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.all(30),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: _isConnected
-              ? [Colors.green.shade400, Colors.green.shade600]
-              : [Colors.grey.shade800, Colors.grey.shade900],
+              ? [
+                  colorScheme.primary.withValues(alpha: 0.9),
+                  colorScheme.primary,
+                ]
+              : [
+                  colorScheme.surfaceContainerHighest,
+                  colorScheme.surfaceContainerHigh,
+                ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: (_isConnected ? Colors.green : Colors.grey).withValues(alpha: 0.3),
+            color: (_isConnected ? colorScheme.primary : colorScheme.surfaceContainerHighest)
+                .withValues(alpha: 0.3),
             blurRadius: 20,
             spreadRadius: 5,
           ),
@@ -357,23 +375,23 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           Icon(
             _isConnected ? Icons.security_rounded : Icons.security_outlined,
             size: 80,
-            color: Colors.white,
+            color: colorScheme.onPrimary,
           ),
           const SizedBox(height: 20),
           Text(
             _isConnected ? AppStrings.get('connected') : AppStrings.get('not_connected'),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: colorScheme.onPrimary,
             ),
           ),
           const SizedBox(height: 10),
           Text(
             selectedServer,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
-              color: Colors.white70,
+              color: colorScheme.onPrimary.withValues(alpha: 0.7),
             ),
           ),
           const SizedBox(height: 30),
@@ -387,8 +405,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                 });
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: _isConnected ? Colors.red : Colors.green,
+                backgroundColor: colorScheme.onPrimary,
+                foregroundColor: _isConnected ? colorScheme.error : colorScheme.primary,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -418,6 +436,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       {'flag': '🇸🇬', 'name': 'Singapore', 'city': 'Singapore', 'ping': '200ms'},
     ];
 
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Column(
       children: [
         Padding(
@@ -444,13 +464,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             itemCount: servers.length,
             separatorBuilder: (context, index) => Divider(
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+              color: colorScheme.onSurface.withValues(alpha: 0.1),
               height: 1,
             ),
             itemBuilder: (context, index) {
               final server = servers[index];
-              final colorScheme = Theme.of(context).colorScheme;
-              final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
 
               return ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -458,7 +476,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: isTrueBlack ? const Color(0xFF141414) : colorScheme.surfaceContainerHighest,
+                    color: colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(
@@ -483,7 +501,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   Icons.check_circle_outline,
                   color: colorScheme.primary,
                 ),
-                tileColor: isTrueBlack ? const Color(0xFF141414) : null,
+                tileColor: colorScheme.surfaceContainerHighest,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 onTap: () {},
               );
@@ -495,8 +513,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   Widget _buildConnectionStats() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Card(
       elevation: 2,
+      color: colorScheme.surfaceContainer,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -526,9 +547,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   Widget _buildStatItem(String label, String value, IconData icon) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Column(
       children: [
-        Icon(icon, color: Theme.of(context).colorScheme.primary),
+        Icon(icon, color: colorScheme.primary),
         const SizedBox(height: 8),
         Text(
           value,
@@ -541,7 +564,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           label,
           style: TextStyle(
             fontSize: 12,
-            color: Colors.grey.shade600,
+            color: colorScheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -587,15 +610,19 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       },
     ];
 
+    final colorScheme = Theme.of(context).colorScheme;
+
     if (subscriptions.isEmpty) {
       return [
         Center(
           child: Column(
             children: [
-              Icon(Icons.inbox_outlined, size: 64, color: Colors.grey.shade400),
+              Icon(Icons.inbox_outlined, size: 64, color: colorScheme.outline),
               const SizedBox(height: 16),
-              Text(AppStrings.get('no_subscriptions'),
-                  style: TextStyle(color: Colors.grey.shade600)),
+              Text(
+                AppStrings.get('no_subscriptions'),
+                style: TextStyle(color: colorScheme.onSurfaceVariant),
+              ),
             ],
           ),
         )
@@ -606,12 +633,13 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       return Card(
         margin: const EdgeInsets.only(bottom: 12),
         elevation: 2,
+        color: colorScheme.surfaceContainer,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: ListTile(
           contentPadding: const EdgeInsets.all(16),
           leading: CircleAvatar(
-            backgroundColor: sub['active'] == true ? Colors.green : Colors.grey,
-            child: const Icon(Icons.cloud, color: Colors.white),
+            backgroundColor: sub['active'] == true ? colorScheme.primary : colorScheme.surfaceContainerHighest,
+            child: Icon(Icons.cloud, color: colorScheme.onPrimary),
           ),
           title: Text(sub['name'] as String? ?? ''),
           subtitle: Text('${sub['profile_count']} ${AppStrings.get('profile').toLowerCase()}'),
@@ -628,12 +656,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     final nameController = TextEditingController();
     final urlController = TextEditingController();
     final colorScheme = Theme.of(context).colorScheme;
-    final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isTrueBlack ? const Color(0xFF0A0A0A) : colorScheme.surface,
+        backgroundColor: colorScheme.surfaceContainer,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Row(
           children: [
@@ -671,7 +698,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   ),
                 ),
                 filled: true,
-                fillColor: isTrueBlack ? const Color(0xFF141414) : colorScheme.surfaceContainerHighest,
+                fillColor: colorScheme.surfaceContainerHighest,
               ),
             ),
             const SizedBox(height: 16),
@@ -698,7 +725,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   ),
                 ),
                 filled: true,
-                fillColor: isTrueBlack ? const Color(0xFF141414) : colorScheme.surfaceContainerHighest,
+                fillColor: colorScheme.surfaceContainerHighest,
               ),
             ),
           ],
@@ -720,16 +747,52 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     );
   }
 
+  void _showDeleteDialog(Map<String, dynamic> subscription) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: colorScheme.surfaceContainer,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(
+          AppStrings.get('warning'),
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
+        content: Text(
+          AppStrings.get('delete_confirm'),
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              AppStrings.get('cancel'),
+              style: TextStyle(color: colorScheme.primary),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(AppStrings.get('delete')),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showSubscriptionMenu(Map<String, dynamic> subscription) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
 
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         decoration: BoxDecoration(
-          color: isTrueBlack ? const Color(0xFF0A0A0A) : colorScheme.surface,
+          color: colorScheme.surfaceContainer,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: SafeArea(
@@ -764,7 +827,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   AppStrings.get('edit'),
                   style: TextStyle(color: colorScheme.onSurface),
                 ),
-                tileColor: isTrueBlack ? const Color(0xFF141414) : null,
+                tileColor: colorScheme.surfaceContainerHighest,
                 onTap: () => Navigator.pop(context),
               ),
               ListTile(
@@ -773,7 +836,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   AppStrings.get('test_connection'),
                   style: TextStyle(color: colorScheme.onSurface),
                 ),
-                tileColor: isTrueBlack ? const Color(0xFF141414) : null,
+                tileColor: colorScheme.surfaceContainerHighest,
                 onTap: () => Navigator.pop(context),
               ),
               ListTile(
@@ -782,7 +845,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   AppStrings.get('delete'),
                   style: const TextStyle(color: Colors.red),
                 ),
-                tileColor: isTrueBlack ? const Color(0xFF141414) : null,
+                tileColor: colorScheme.surfaceContainerHighest,
                 onTap: () {
                   Navigator.pop(context);
                   _showDeleteDialog(subscription);
@@ -792,43 +855,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  void _showDeleteDialog(Map<String, dynamic> subscription) {
-    final colorScheme = Theme.of(context).colorScheme;
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colorScheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(
-          AppStrings.get('warning'),
-          style: TextStyle(color: colorScheme.onSurface),
-        ),
-        content: Text(
-          AppStrings.get('delete_confirm'),
-          style: TextStyle(color: colorScheme.onSurface),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              AppStrings.get('cancel'),
-              style: TextStyle(color: colorScheme.primary),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: Text(AppStrings.get('delete')),
-          ),
-        ],
       ),
     );
   }
@@ -1056,12 +1082,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   void _showThemeModeDialog() {
     final themeState = ref.read(themeProvider);
     final colorScheme = Theme.of(context).colorScheme;
-    final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isTrueBlack ? const Color(0xFF0A0A0A) : colorScheme.surface,
+        backgroundColor: colorScheme.surfaceContainer,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Text(
           'Tema Modu',
@@ -1079,7 +1104,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               trailing: themeState.themeMode == mode
                   ? Icon(Icons.check_circle, color: colorScheme.primary)
                   : null,
-              tileColor: isTrueBlack ? const Color(0xFF141414) : null,
+              tileColor: colorScheme.surfaceContainerHighest,
               onTap: () {
                 ref.read(themeProvider.notifier).setThemeMode(mode);
                 Navigator.pop(context);
@@ -1094,12 +1119,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   void _showSeedColorDialog(ThemeState themeState) {
     final selectedColor = themeState.seedColor;
     final colorScheme = Theme.of(context).colorScheme;
-    final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isTrueBlack ? const Color(0xFF0A0A0A) : colorScheme.surface,
+        backgroundColor: colorScheme.surfaceContainer,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Text(
           'Tohum Rengi Seç',
@@ -1141,12 +1165,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
   void _showLanguageDialog() {
     final colorScheme = Theme.of(context).colorScheme;
-    final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isTrueBlack ? const Color(0xFF0A0A0A) : colorScheme.surface,
+        backgroundColor: colorScheme.surfaceContainer,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Row(
           children: [
@@ -1169,7 +1192,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               trailing: _currentLanguage == lang
                   ? Icon(Icons.check_circle, color: colorScheme.primary)
                   : null,
-              tileColor: isTrueBlack ? const Color(0xFF141414) : null,
+              tileColor: colorScheme.surfaceContainerHighest,
               onTap: () {
                 setState(() {
                   _currentLanguage = lang;
@@ -1188,12 +1211,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   Widget _buildSettingsSection(String title, List<Widget> children) {
     final isExpanded = _expandedSections.contains(title);
     final colorScheme = Theme.of(context).colorScheme;
-    final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
 
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: isTrueBlack ? const Color(0xFF0A0A0A) : null,
+      color: colorScheme.surfaceContainer,
       child: Column(
         children: [
           InkWell(
@@ -1241,7 +1263,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     Widget? trailing,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -1251,7 +1272,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
         trailing: trailing,
         onTap: onTap,
-        tileColor: isTrueBlack ? const Color(0xFF141414) : null,
+        tileColor: colorScheme.surfaceContainerHighest,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
