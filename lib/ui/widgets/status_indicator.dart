@@ -4,7 +4,7 @@ import '../../models/vpn_status.dart';
 class StatusIndicator extends StatelessWidget {
   final VpnStatus status;
 
-  const StatusIndicator({required this.status});
+  const StatusIndicator({super.key, required this.status});
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +43,7 @@ class StatusIndicator extends StatelessWidget {
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: statusColor.withOpacity(0.6),
+                color: statusColor.withValues(alpha: 0.6),
                 blurRadius: 15,
                 spreadRadius: 3,
               ),

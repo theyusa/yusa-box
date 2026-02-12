@@ -7,8 +7,10 @@ import '../widgets/status_indicator.dart';
 import '../widgets/speed_display.dart';
 
 class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
   @override
-  _HomeScreenState createState() => _HomeScreenState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
@@ -33,11 +35,15 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_currentStatus.isConnected) {
       await _vpnService.stopVpn();
     } else {
+      if (!mounted) return;
+      final scaffoldMessenger = ScaffoldMessenger.of(context);
       final hasPermission = await _vpnService.requestVpnPermission();
       if (!hasPermission) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('VPN izni gerekli')),
-        );
+        if (mounted) {
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(content: Text('VPN izni gerekli')),
+          );
+        }
         return;
       }
 
@@ -51,9 +57,9 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
       final success = await _vpnService.startVpn(config);
-      if (!success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('VPN bağlantısı başarısız')),
+      if (!success && mounted) {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(content: Text('VPN bağlantısı başarısız')),
         );
       }
     }

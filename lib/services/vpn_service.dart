@@ -27,8 +27,7 @@ class VpnService {
         'config': config.toSingBoxConfig(),
       });
       return result as bool;
-    } on PlatformException catch (e) {
-      print('VPN başlatma hatası: ${e.message}');
+    } on PlatformException {
       return false;
     }
   }
@@ -37,8 +36,7 @@ class VpnService {
     try {
       final result = await platform.invokeMethod('stopVpn');
       return result as bool;
-    } on PlatformException catch (e) {
-      print('VPN durdurma hatası: ${e.message}');
+    } on PlatformException {
       return false;
     }
   }
@@ -47,8 +45,7 @@ class VpnService {
     try {
       final result = await platform.invokeMethod('requestPermission');
       return result as bool;
-    } on PlatformException catch (e) {
-      print('VPN izin hatası: ${e.message}');
+    } on PlatformException {
       return false;
     }
   }

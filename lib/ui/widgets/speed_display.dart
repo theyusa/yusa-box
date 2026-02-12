@@ -6,6 +6,7 @@ class SpeedDisplay extends StatelessWidget {
   final Duration? connectedTime;
 
   const SpeedDisplay({
+    super.key,
     required this.uploadSpeed,
     required this.downloadSpeed,
     this.connectedTime,
@@ -33,9 +34,9 @@ class SpeedDisplay extends StatelessWidget {
       padding: EdgeInsets.all(20),
       margin: EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
-        color: Color(0xFF16213E).withOpacity(0.6),
+        color: Color(0xFF16213E).withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Color(0xFF00D4FF).withOpacity(0.3)),
+        border: Border.all(color: Color(0xFF00D4FF).withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [

@@ -19,7 +19,7 @@ class YusaBoxApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const HomeScreen(),
+      home: HomeScreen(),
     );
   }
 }

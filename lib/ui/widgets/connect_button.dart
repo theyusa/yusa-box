@@ -6,6 +6,7 @@ class ConnectButton extends StatelessWidget {
   final VoidCallback onPressed;
 
   const ConnectButton({
+    super.key,
     required this.isConnected,
     required this.isConnecting,
     required this.onPressed,
@@ -30,7 +31,7 @@ class ConnectButton extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: (isConnected ? Color(0xFF00D4FF) : Colors.grey)
-                  .withOpacity(0.5),
+                  .withValues(alpha: 0.5),
               blurRadius: 30,
               spreadRadius: 5,
             ),
