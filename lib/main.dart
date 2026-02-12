@@ -6,6 +6,8 @@ import 'strings.dart';
 import 'providers/theme_provider.dart';
 import 'models/vpn_models.dart';
 
+enum SortOption { name, ping }
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -225,10 +227,14 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   bool _isConnected = false;
   int _currentIndex = 0;
   String _currentLanguage = AppStrings.tr;
-  
+
   // State: Dynamic Data
   List<VPNSubscription> _subscriptions = [];
   VPNServer? _selectedServer; // Selected Server Object
+  
+  // State: Filter and Sort
+  String? _selectedSubId; // null = All
+  SortOption _currentSort = SortOption.name;
 
   final Set<String> _expandedSections = {};
 
@@ -495,9 +501,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   Widget _buildServerView() {
     final colorScheme = Theme.of(context).colorScheme;
 
-    // Flatten logic: List all servers from all subscriptions
-    // Alternatively, group by subscription. Grouping is better for context.
-    
     if (_subscriptions.isEmpty) {
        return Center(
         child: Column(
@@ -519,6 +522,234 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         ),
       );
     }
+
+    // 1. Filter Servers
+    List<VPNServer> filteredServers = [];
+    if (_selectedSubId == null) {
+      // Flatten all
+      for (var sub in _subscriptions) {
+        filteredServers.addAll(sub.servers);
+      }
+    } else {
+      final sub = _subscriptions.firstWhere((s) => s.id == _selectedSubId, orElse: () => _subscriptions.first);
+      filteredServers.addAll(sub.servers);
+    }
+
+    // 2. Sort Servers
+    filteredServers.sort((a, b) {
+      if (_currentSort == SortOption.name) {
+        return a.name.compareTo(b.name);
+      } else {
+        // Simple ping parser (removes 'ms' and parses int)
+        int parsePing(String p) => int.tryParse(p.replaceAll(RegExp(r'[^0-9]'), '')) ?? 999;
+        return parsePing(a.ping).compareTo(parsePing(b.ping));
+      }
+    });
+
+    return Column(
+      children: [
+        // Header & Actions
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Server Listesi',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              Row(
+                children: [
+                  // Ping Test Action
+                  IconButton(
+                    tooltip: 'Ping Testi',
+                    icon: const Icon(Icons.network_check),
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Tüm serverlar için ping testi başlatıldı...')),
+                      );
+                      // Simulate ping update logic here if needed
+                    },
+                  ),
+                  // Sort Action
+                  PopupMenuButton<SortOption>(
+                    icon: const Icon(Icons.sort),
+                    tooltip: 'Sırala',
+                    initialValue: _currentSort,
+                    onSelected: (SortOption item) {
+                      setState(() {
+                        _currentSort = item;
+                      });
+                    },
+                    itemBuilder: (BuildContext context) => <PopupMenuEntry<SortOption>>[
+                      const PopupMenuItem<SortOption>(
+                        value: SortOption.name,
+                        child: Text('İsim (A-Z)'),
+                      ),
+                      const PopupMenuItem<SortOption>(
+                        value: SortOption.ping,
+                        child: Text('Ping (Düşük - Yüksek)'),
+                      ),
+                    ],
+                  ),
+                  // Update Action (Refresh all subs)
+                  IconButton(
+                    tooltip: 'Tümünü Güncelle',
+                    icon: const Icon(Icons.refresh),
+                    onPressed: () {
+                      setState(() {
+                        for (var sub in _subscriptions) {
+                          sub.refreshServers();
+                        }
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Tüm abonelikler güncellendi')),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        // Category Filter (Chips)
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  label: const Text('Tümü'),
+                  selected: _selectedSubId == null,
+                  onSelected: (bool selected) {
+                    setState(() {
+                      _selectedSubId = null;
+                    });
+                  },
+                ),
+              ),
+              ..._subscriptions.map((sub) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(sub.name),
+                    selected: _selectedSubId == sub.id,
+                    onSelected: (bool selected) {
+                      setState(() {
+                        _selectedSubId = selected ? sub.id : null;
+                      });
+                    },
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        // Server List
+        Expanded(
+          child: filteredServers.isEmpty
+              ? Center(
+                  child: Text(
+                    'Bu kategoride server yok.',
+                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 20, top: 8),
+                  itemCount: filteredServers.length,
+                  itemBuilder: (context, index) {
+                    final server = filteredServers[index];
+                    final isSelected = _selectedServer?.id == server.id;
+                    
+                    // Find parent subscription for actions
+                    final parentSub = _subscriptions.firstWhere(
+                      (s) => s.servers.contains(server), 
+                      orElse: () => _subscriptions.first
+                    );
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        leading: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Text(server.flag, style: const TextStyle(fontSize: 24)),
+                          ),
+                        ),
+                        title: Text(
+                          server.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          '${server.city} • ${server.ping}',
+                          style: TextStyle(color: colorScheme.onSurfaceVariant),
+                        ),
+                        tileColor: isSelected 
+                            ? colorScheme.primaryContainer.withValues(alpha: 0.3) 
+                            : colorScheme.surfaceContainer,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        onTap: () {
+                          setState(() {
+                            _selectedServer = server;
+                          });
+                        },
+                        trailing: PopupMenuButton<String>(
+                          icon: Icon(Icons.more_vert, color: colorScheme.onSurfaceVariant),
+                          onSelected: (value) {
+                            if (value == 'edit') {
+                              _showServerEditDialog(parentSub, server);
+                            } else if (value == 'delete') {
+                              _deleteServer(parentSub, server);
+                            } else if (value == 'copy') {
+                              // Copy logic
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Server URL kopyalandı')),
+                              );
+                            }
+                          },
+                          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                            const PopupMenuItem<String>(
+                              value: 'edit',
+                              child: Row(
+                                children: [Icon(Icons.edit, size: 20), SizedBox(width: 8), Text('Düzenle')],
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'copy',
+                              child: Row(
+                                children: [Icon(Icons.content_copy, size: 20), SizedBox(width: 8), Text('Kopyala')],
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'delete',
+                              child: Row(
+                                children: [Icon(Icons.delete, color: Colors.red, size: 20), SizedBox(width: 8), Text('Sil', style: TextStyle(color: Colors.red))],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
 
     return Column(
       children: [
