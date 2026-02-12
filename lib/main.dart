@@ -476,12 +476,16 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                         'Server Listesi',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
                             ),
                       ),
                       TextButton.icon(
                         onPressed: () {},
                         icon: const Icon(Icons.edit),
                         label: const Text('Düzenle'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: colorScheme.primary,
+                        ),
                       ),
                     ],
                   ),
@@ -516,12 +520,19 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                             ),
                           ),
                         ),
-                        title: Text(server['name'] ?? ''),
-                        subtitle: Text('${server['city']} • ${server['ping']}'),
+                        title: Text(
+                          server['name'] ?? '',
+                          style: TextStyle(color: colorScheme.onSurface),
+                        ),
+                        subtitle: Text(
+                          '${server['city']} • ${server['ping']}',
+                          style: TextStyle(color: colorScheme.onSurfaceVariant),
+                        ),
                         trailing: Icon(
                           Icons.check_circle_outline,
                           color: colorScheme.primary,
                         ),
+                        tileColor: isTrueBlack ? const Color(0xFF141414) : null,
                         onTap: () {
                           Navigator.pop(context);
                         },
@@ -1098,21 +1109,31 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
   void _showThemeModeDialog() {
     final themeState = ref.read(themeProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: isTrueBlack ? const Color(0xFF0A0A0A) : colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Tema Modu'),
+        title: Text(
+          'Tema Modu',
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: AppThemeMode.values.map((mode) {
             return ListTile(
-              title: Text(mode.displayName),
+              title: Text(
+                mode.displayName,
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
               leading: Icon(_getThemeModeIcon(mode)),
               trailing: themeState.themeMode == mode
-                  ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
+                  ? Icon(Icons.check_circle, color: colorScheme.primary)
                   : null,
+              tileColor: isTrueBlack ? const Color(0xFF141414) : null,
               onTap: () {
                 ref.read(themeProvider.notifier).setThemeMode(mode);
                 Navigator.pop(context);
@@ -1126,12 +1147,18 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
   void _showSeedColorDialog(ThemeState themeState) {
     final selectedColor = themeState.seedColor;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: isTrueBlack ? const Color(0xFF0A0A0A) : colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Tohum Rengi Seç'),
+        title: Text(
+          'Tohum Rengi Seç',
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
         content: SizedBox(
           width: double.maxFinite,
           child: GridView.builder(
@@ -1167,25 +1194,36 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   void _showLanguageDialog() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: isTrueBlack ? const Color(0xFF0A0A0A) : colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Row(
           children: [
-            Icon(Icons.language_outlined, color: Theme.of(context).colorScheme.primary),
+            Icon(Icons.language_outlined, color: colorScheme.primary),
             const SizedBox(width: 12),
-            Text(AppStrings.get('language')),
+            Text(
+              AppStrings.get('language'),
+              style: TextStyle(color: colorScheme.onSurface),
+            ),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: AppStrings.supportedLanguages.map((lang) {
             return ListTile(
-              title: Text(AppStrings.getLanguageName(lang)),
+              title: Text(
+                AppStrings.getLanguageName(lang),
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
               trailing: _currentLanguage == lang
-                  ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
+                  ? Icon(Icons.check_circle, color: colorScheme.primary)
                   : null,
+              tileColor: isTrueBlack ? const Color(0xFF141414) : null,
               onTap: () {
                 setState(() {
                   _currentLanguage = lang;
@@ -1238,15 +1276,20 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             ),
           ),
           if (isExpanded)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              child: Column(
-                children: children.map((child) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: child,
-                  );
-                }).toList(),
+            Column(
+              children: List.generate(
+                children.length,
+                (index) => Column(
+                  children: [
+                    children[index],
+                    if (index < children.length - 1)
+                      Divider(
+                        height: 20,
+                        thickness: 1,
+                        color: colorScheme.onSurface.withValues(alpha: 0.1),
+                      ),
+                  ],
+                ),
               ),
             ),
         ],
@@ -1264,14 +1307,17 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     final colorScheme = Theme.of(context).colorScheme;
     final isTrueBlack = colorScheme.surface == const Color(0xFF000000);
 
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
-      trailing: trailing,
-      onTap: onTap,
-      tileColor: isTrueBlack ? const Color(0xFF141414) : null,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: ListTile(
+        leading: Icon(icon),
+        title: Text(title),
+        subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
+        trailing: trailing,
+        onTap: onTap,
+        tileColor: isTrueBlack ? const Color(0xFF141414) : null,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
     );
   }
 
