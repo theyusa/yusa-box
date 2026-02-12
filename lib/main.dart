@@ -485,8 +485,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                 }
                 setState(() {
                   _isConnected = !_isConnected;
-                  if (_isConnected) _addLog('Bağlandı: ${_selectedServer?.name}');
-                  else _addLog('Bağlantı kesildi');
+                  if (_isConnected) {
+                    _addLog('Bağlandı: ${_selectedServer?.name}');
+                  } else {
+                    _addLog('Bağlantı kesildi');
+                  }
                 });
             },
             backgroundColor: _isConnected ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
