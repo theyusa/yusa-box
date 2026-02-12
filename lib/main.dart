@@ -83,6 +83,7 @@ class MyApp extends ConsumerWidget {
       },
     );
   }
+}
 
 ThemeData _buildLightTheme(ColorScheme colorScheme) {
   return ThemeData(
