@@ -304,10 +304,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
   Future<void> _loadSubscriptions() async {
     _subscriptions = ServerService.getAllSubscriptions();
-    for (var sub in _subscriptions) {
-      final allServers = ServerService.getAllServers();
-      sub.servers = allServers;
-    }
     setState(() {});
   }
 
@@ -331,29 +327,31 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     try {
       final servers = await _subscriptionService.fetchServersFromSubscription(sub.url);
 
-      final index = _subscriptions.indexWhere((s) => s.id == sub.id);
+      final box = ServerService.subscriptionsBox;
+      final index = box.values.toList().indexWhere((s) => s.id == sub.id);
+
+      final updatedSub = VPNSubscription(
+        id: sub.id,
+        name: sub.name,
+        url: sub.url,
+        servers: servers,
+      );
+
       if (index != -1) {
-        final updatedSub = VPNSubscription(
-          id: sub.id,
-          name: sub.name,
-          url: sub.url,
-          servers: servers,
-        );
-        await ServerService.updateSubscription(index, updatedSub);
-        await _loadSubscriptions();
-
-        await ServerService.clearServers();
-        for (final currentSub in _subscriptions) {
-          await ServerService.addServers(currentSub.servers);
-        }
-
-        _addLog('${sub.name}: ${servers.length} server güncellendi');
+        await box.putAt(index, updatedSub);
+      } else {
+        await box.add(updatedSub);
       }
+
+      await ServerService.clearServers();
+      await ServerService.addServers(servers);
+
+      _addLog('${sub.name}: ${servers.length} server güncellendi');
     } catch (e) {
       _addLog('Hata: ${e.toString()}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Hata: ${e.toString()}')),
+          SnackBar(content: Text('Hata: ${e.toString()}'),
         );
       }
     }
@@ -1085,6 +1083,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   icon: const Icon(Icons.refresh),
                   onPressed: () async {
                     await _refreshSubscription(sub);
+                    await _loadSubscriptions();
                   },
                 ),
                 IconButton(
@@ -1205,6 +1204,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   );
                   await ServerService.addSubscription(newSub);
                   await _refreshSubscription(newSub);
+                  await _loadSubscriptions();
                 }
               }
               if (mounted) {
