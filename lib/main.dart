@@ -1404,19 +1404,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           ),
           body: StatefulBuilder(
             builder: (context, setDialogState) {
-              final colorScheme = Theme.of(context).colorScheme;
-              final inputDecoration = InputDecoration(
-                filled: true,
-                fillColor: colorScheme.surfaceContainerHighest,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                errorBorder: InputBorder.none,
-                focusedErrorBorder: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
-              );
-
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -1425,32 +1412,24 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                     _buildSettingsSection('Temel Bilgiler', [
                       TextField(
                         controller: nameController,
-                        decoration: inputDecoration.copyWith(
-                          labelText: 'İsim',
-                          prefixIcon: const Icon(Icons.label),
-                        ),
+                        decoration: const InputDecoration(labelText: 'İsim', prefixIcon: Icon(Icons.label)),
                       ),
+                      const SizedBox(height: 16),
                       Row(
                         children: [
                           Expanded(
                             flex: 2,
                             child: TextField(
                               controller: addressController,
-                              decoration: inputDecoration.copyWith(
-                                labelText: 'Adres',
-                                prefixIcon: const Icon(Icons.dns),
-                              ),
+                              decoration: const InputDecoration(labelText: 'Adres', prefixIcon: Icon(Icons.dns)),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 16),
                           Expanded(
                             flex: 1,
                             child: TextField(
                               controller: portController,
-                              decoration: inputDecoration.copyWith(
-                                labelText: 'Port',
-                                prefixIcon: const Icon(Icons.settings_ethernet),
-                              ),
+                              decoration: const InputDecoration(labelText: 'Port', prefixIcon: Icon(Icons.settings_ethernet)),
                               keyboardType: TextInputType.number,
                             ),
                           ),
@@ -1458,32 +1437,26 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                       ),
                     ]),
 
+                    const SizedBox(height: 24),
                     _buildSettingsSection('Protokol', [
                       DropdownButtonFormField<String>(
                         initialValue: ['VLESS', 'VMESS', 'TROJAN', 'SHADOWSOCKS'].contains(selectedProtocol) ? selectedProtocol : 'VLESS',
-                        decoration: inputDecoration.copyWith(
-                          labelText: 'Protokol',
-                          prefixIcon: const Icon(Icons.vpn_key),
-                        ),
+                        decoration: const InputDecoration(labelText: 'Protokol', prefixIcon: Icon(Icons.vpn_key)),
                         items: ['VLESS', 'VMESS', 'TROJAN', 'SHADOWSOCKS'].map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
                         onChanged: (v) => setDialogState(() => selectedProtocol = v!),
                       ),
+                      const SizedBox(height: 16),
                       TextField(
                         controller: uuidController,
-                        decoration: inputDecoration.copyWith(
-                          labelText: 'UUID / Password',
-                          prefixIcon: const Icon(Icons.password),
-                        ),
+                        decoration: const InputDecoration(labelText: 'UUID / Password', prefixIcon: Icon(Icons.password)),
                       ),
                     ]),
 
+                    const SizedBox(height: 24),
                     _buildSettingsSection('Güvenlik (TLS)', [
                       DropdownButtonFormField<String>(
                         initialValue: selectedSecurity,
-                        decoration: inputDecoration.copyWith(
-                          labelText: 'TLS Modu',
-                          prefixIcon: const Icon(Icons.security),
-                        ),
+                        decoration: const InputDecoration(labelText: 'TLS Modu', prefixIcon: Icon(Icons.security)),
                         items: ['none', 'tls', 'reality'].map((s) => DropdownMenuItem(value: s, child: Text(s.toUpperCase()))).toList(),
                         onChanged: (v) => setDialogState(() => selectedSecurity = v!),
                       ),
@@ -1493,54 +1466,42 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                         onChanged: (v) => setDialogState(() => allowInsecure = v),
                       ),
                       if (selectedSecurity != 'none') ...[
+                        const SizedBox(height: 16),
                         TextField(
                           controller: sniController,
-                          decoration: inputDecoration.copyWith(
-                            labelText: 'SNI',
-                            prefixIcon: const Icon(Icons.domain),
-                          ),
+                          decoration: const InputDecoration(labelText: 'SNI', prefixIcon: Icon(Icons.domain)),
                         ),
+                        const SizedBox(height: 16),
                         TextField(
                           controller: fingerprintController,
-                          decoration: inputDecoration.copyWith(
-                            labelText: 'Fingerprint',
-                            prefixIcon: const Icon(Icons.fingerprint),
-                          ),
+                          decoration: const InputDecoration(labelText: 'Fingerprint', prefixIcon: Icon(Icons.fingerprint)),
                         ),
+                        const SizedBox(height: 16),
                         TextField(
                           controller: alpnController,
-                          decoration: inputDecoration.copyWith(
-                            labelText: 'ALPN (virgülle ayır)',
-                            prefixIcon: const Icon(Icons.layers),
-                          ),
+                          decoration: const InputDecoration(labelText: 'ALPN (virgülle ayır)', prefixIcon: Icon(Icons.layers)),
                         ),
                       ],
                     ]),
 
+                    const SizedBox(height: 24),
                     _buildSettingsSection('Transport', [
                       DropdownButtonFormField<String>(
                         initialValue: selectedTransport,
-                        decoration: inputDecoration.copyWith(
-                          labelText: 'Transport',
-                          prefixIcon: const Icon(Icons.swap_calls),
-                        ),
+                        decoration: const InputDecoration(labelText: 'Transport', prefixIcon: Icon(Icons.swap_calls)),
                         items: ['tcp', 'ws', 'grpc', 'http'].map((t) => DropdownMenuItem(value: t, child: Text(t.toUpperCase()))).toList(),
                         onChanged: (v) => setDialogState(() => selectedTransport = v!),
                       ),
                       if (selectedTransport != 'tcp') ...[
+                        const SizedBox(height: 16),
                         TextField(
                           controller: pathController,
-                          decoration: inputDecoration.copyWith(
-                            labelText: 'Path / Service Name',
-                            prefixIcon: const Icon(Icons.folder),
-                          ),
+                          decoration: const InputDecoration(labelText: 'Path / Service Name', prefixIcon: Icon(Icons.folder)),
                         ),
+                        const SizedBox(height: 16),
                         TextField(
                           controller: hostController,
-                          decoration: inputDecoration.copyWith(
-                            labelText: 'Host',
-                            prefixIcon: const Icon(Icons.computer),
-                          ),
+                          decoration: const InputDecoration(labelText: 'Host', prefixIcon: Icon(Icons.computer)),
                         ),
                       ]
                     ]),
@@ -1955,13 +1916,19 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   Widget _buildSettingsSection(String title, List<Widget> children) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Container(
+    return Card(
+      elevation: 0,
       margin: const EdgeInsets.only(bottom: 24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+      ),
+      color: colorScheme.surfaceContainerLow,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(0, 0, 0, 16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text(
               title.toUpperCase(),
               style: TextStyle(
@@ -1972,10 +1939,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               ),
             ),
           ),
-          ...children.map((child) => Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: child,
-          )),
+          ...children,
+          const SizedBox(height: 8),
         ],
       ),
     );
