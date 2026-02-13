@@ -334,6 +334,10 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   Future<void> _deleteSubscription(VPNSubscription sub) async {
     final index = _subscriptions.indexWhere((s) => s.id == sub.id);
     if (index != -1) {
+      for (final server in sub.servers) {
+        await ServerService.removeModifiedServer(server.id);
+      }
+      
       await ServerService.deleteSubscription(index);
       await _loadSubscriptions();
 
@@ -350,6 +354,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     _addLog('Abonelik yenileniyor: ${sub.name}');
     try {
       final servers = await _subscriptionService.fetchServersFromSubscription(sub.url);
+
+      await ServerService.applyModificationsToServers(servers);
 
       final box = ServerService.subscriptionsBox;
       final index = box.values.toList().indexWhere((s) => s.id == sub.id);
@@ -1261,6 +1267,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   void _deleteServer(VPNSubscription parentSub, VpnServer server) async {
+    await ServerService.removeModifiedServer(server.id);
     await server.delete();
     if (_selectedServer?.id == server.id) {
       setState(() => _selectedServer = null);
@@ -1391,11 +1398,12 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   server.updateField('host', hostController.text.isNotEmpty ? hostController.text : null);
                   server.updateField('path', pathController.text.isNotEmpty ? pathController.text : null);
 
-                  await server.save(); 
+                  await server.save();
+                  await ServerService.saveModifiedServer(server);
                   
                   navigator.pop();
                   scaffoldMessenger.showSnackBar(
-                    const SnackBar(content: Text('Server güncellendi')),
+                    const SnackBar(content: Text('Server güncellendi ve kaydedildi')),
                   );
                 },
                 child: Text(AppStrings.get('save')),
