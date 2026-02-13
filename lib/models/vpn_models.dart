@@ -30,7 +30,7 @@ class VpnServer extends HiveObject {
   });
 
   // Dinamik olarak config string'ini Map'e çevirir
-  Map<String, dynamic> get _parsedData {
+  Map<String, dynamic> get parsedData {
     if (config.isEmpty) return {};
     try {
       return jsonDecode(config) as Map<String, dynamic>;
@@ -40,31 +40,31 @@ class VpnServer extends HiveObject {
   }
 
   // Helper getters - Dinamik yapıdan verileri çeker
-  String get flag => _parsedData['flag'] ?? '🌐';
-  String get address => _parsedData['server'] ?? _parsedData['address'] ?? 'Unknown';
-  int get port => _parsedData['server_port'] ?? _parsedData['port'] ?? 443;
-  String get protocol => _parsedData['type'] ?? _parsedData['protocol'] ?? 'sing-box';
-  String get transport => _parsedData['transport'] ?? _parsedData['network'] ?? 'tcp';
-  String get security => _parsedData['security'] ?? 'tls';
-  String get city => _parsedData['city'] ?? 'Unknown';
-  
+  String get flag => parsedData['flag'] ?? '🌐';
+  String get address => parsedData['server'] ?? parsedData['address'] ?? 'Unknown';
+  int get port => parsedData['server_port'] ?? parsedData['port'] ?? 443;
+  String get protocol => parsedData['type'] ?? parsedData['protocol'] ?? 'sing-box';
+  String get transport => parsedData['transport'] ?? parsedData['network'] ?? 'tcp';
+  String get security => parsedData['security'] ?? 'tls';
+  String get city => parsedData['city'] ?? 'Unknown';
+
   // Specific fields mapped from dynamic data
-  String? get uuid => _parsedData['uuid'];
-  String? get path => _parsedData['path'];
-  String? get host => _parsedData['host'];
-  String? get sni => _parsedData['sni'];
-  String? get alpn => _parsedData['alpn'] is List ? (_parsedData['alpn'] as List).join(',') : _parsedData['alpn'];
-  bool get allowInsecure => _parsedData['allowInsecure'] == true || _parsedData['allowInsecure'] == '1';
-  String? get fingerprint => _parsedData['fingerprint'];
+  String? get uuid => parsedData['uuid'];
+  String? get path => parsedData['path'];
+  String? get host => parsedData['host'];
+  String? get sni => parsedData['sni'];
+  String? get alpn => parsedData['alpn'] is List ? (parsedData['alpn'] as List).join(',') : parsedData['alpn'];
+  bool get allowInsecure => parsedData['allowInsecure'] == true || parsedData['allowInsecure'] == '1';
+  String? get fingerprint => parsedData['fingerprint'];
 
   // SingBox için Outbound Config Oluşturur
   Map<String, dynamic> toSingboxOutbound() {
-    return SingBoxConfig(_parsedData).buildOutbound();
+    return SingBoxConfig(parsedData).buildOutbound();
   }
-  
+
   // Helper to update specific fields in the JSON config
   void updateField(String key, dynamic value) {
-    final data = _parsedData;
+    final data = parsedData;
     if (value == null) {
       data.remove(key);
     } else {

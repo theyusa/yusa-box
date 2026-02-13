@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'dart:convert'; // Added for jsonEncode
+import 'dart:convert';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'strings.dart';
 import 'providers/theme_provider.dart';
 import 'models/vpn_models.dart';
@@ -240,12 +243,16 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   String _currentLanguage = AppStrings.tr;
 
   // State: Dynamic Data
-  List<VPNSubscription> _subscriptions = []; // Computed from Hive
-  VpnServer? _selectedServer; // Selected Server Object
-  
+  List<VPNSubscription> _subscriptions = [];
+  VpnServer? _selectedServer;
+
   // State: Filter and Sort
-  String? _selectedSubId; // null = All
+  String? _selectedSubId;
   SortOption _currentSort = SortOption.name;
+
+  // State: VPN Session
+  DateTime? _connectionStartTime;
+  String _currentIp = '---.---.---.---';
 
   // Logs
   final List<String> _logs = [
@@ -268,6 +275,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     _listenToVpnStatus();
   }
 
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
   void _listenToVpnStatus() {
     _vpnService.statusStream.listen((status) {
       final state = status['state'] as int? ?? 0;
@@ -275,10 +287,14 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         setState(() {
           _isConnected = state == 2;
           if (state == 2) {
+            _connectionStartTime = DateTime.now();
             _addLog('VPN Bağlandı');
           } else if (state == 4) {
             final message = status['message'] as String? ?? 'Hata';
             _addLog('VPN Hatası: $message');
+            _connectionStartTime = null;
+          } else {
+            _connectionStartTime = null;
           }
         });
       }
@@ -287,6 +303,10 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
   Future<void> _loadSubscriptions() async {
     _subscriptions = ServerService.getAllSubscriptions();
+    for (var sub in _subscriptions) {
+      final allServers = ServerService.getAllServers();
+      sub.servers = allServers;
+    }
     setState(() {});
   }
 
@@ -381,21 +401,21 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Uygulama Logları', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.share),
-                          onPressed: () {},
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          onPressed: () => setState(() => _logs.clear()),
-                        ),
-                      ],
-                    ),
-                  ],
+                    children: [
+                      const Text('Uygulama Logları', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.share),
+                            onPressed: () => _shareLogs(),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () => setState(() => _logs.clear()),
+                          ),
+                        ],
+                      ),
+                    ],
                 ),
               ),
               const Divider(height: 1),
@@ -423,63 +443,47 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   Widget build(BuildContext context) {
     final themeState = ref.watch(themeProvider);
 
-    return ValueListenableBuilder(
-      valueListenable: ServerService.serversListenable,
-      builder: (context, Box<VpnServer> box, _) {
-        final allServers = box.values.toList();
-        // Wrap all servers in a dummy subscription for compatibility with existing UI logic
-        _subscriptions = [
-          VPNSubscription(
-            id: 'all_servers',
-            name: 'Tüm Serverlar',
-            url: 'Local Database',
-            servers: allServers,
-          )
-        ];
-
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(AppStrings.get('app_title')),
-            centerTitle: true,
-            elevation: 0,
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(AppStrings.get('app_title')),
+        centerTitle: true,
+        elevation: 0,
+      ),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          _buildVPNView(),
+          _buildServerView(),
+          _buildSubscriptionView(),
+          _buildSettingsView(themeState),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        destinations: [
+          NavigationDestination(
+            icon: const Icon(Icons.vpn_lock),
+            label: AppStrings.get('vpn'),
           ),
-          body: IndexedStack(
-            index: _currentIndex,
-            children: [
-              _buildVPNView(),
-              _buildServerView(), // Now dynamically linked
-              _buildSubscriptionView(), // Now manages the data
-              _buildSettingsView(themeState),
-            ],
+          NavigationDestination(
+            icon: const Icon(Icons.dns),
+            label: 'Server',
           ),
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: _currentIndex,
-            onDestinationSelected: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-            },
-            destinations: [
-              NavigationDestination(
-                icon: const Icon(Icons.vpn_lock),
-                label: AppStrings.get('vpn'),
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.dns),
-                label: 'Server',
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.workspace_premium),
-                label: AppStrings.get('subscription'),
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.settings),
-                label: AppStrings.get('settings'),
-              ),
-            ],
+          NavigationDestination(
+            icon: const Icon(Icons.workspace_premium),
+            label: AppStrings.get('subscription'),
           ),
-        );
-      },
+          NavigationDestination(
+            icon: const Icon(Icons.settings),
+            label: AppStrings.get('settings'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -528,7 +532,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               
               const SizedBox(height: 16),
               
-              // Session Info Card (Graph Replacement)
+              // Session Info Card
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -539,9 +543,9 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _buildSessionStat('Oturum Süresi', _isConnected ? '00:42:15' : '--:--'),
+                    _buildSessionStat('Oturum Süresi', _isConnected ? _getSessionDuration() : '--:--'),
                     Container(height: 40, width: 1, color: Theme.of(context).colorScheme.outlineVariant),
-                    _buildSessionStat('Veri Kullanımı', _isConnected ? '17.8 MB' : '--'),
+                    _buildSessionStat('Veri Kullanımı', _isConnected ? 'Hesaplanıyor...' : '--'),
                   ],
                 ),
               ),
@@ -609,10 +613,42 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     );
   }
 
+  String _getSessionDuration() {
+    if (_connectionStartTime == null) return '--:--';
+    final duration = DateTime.now().difference(_connectionStartTime!);
+    final hours = duration.inHours.toString().padLeft(2, '0');
+    final minutes = (duration.inMinutes % 60).toString().padLeft(2, '0');
+    final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+    return '$hours:$minutes:$seconds';
+  }
+
+  Future<void> _shareLogs() async {
+    final logContent = _logs.join('\n');
+    final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-').split('.')[0];
+    final filename = 'yusabox_logs_$timestamp.log';
+
+    try {
+      final directory = await getTemporaryDirectory();
+      final file = File('${directory.path}/$filename');
+      await file.writeAsString(logContent);
+
+      if (mounted) {
+        final xFile = XFile(file.path);
+        await Share.shareXFiles([xFile], text: 'YusaBox Logları');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Log paylaşılırken hata: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
   Widget _buildDashboardGrid() {
     final colorScheme = Theme.of(context).colorScheme;
-    final selectedServerName = _selectedServer != null 
-        ? '${_selectedServer!.flag} ${_selectedServer!.name}' 
+    final selectedServerName = _selectedServer != null
+        ? '${_selectedServer!.flag} ${_selectedServer!.name}'
         : 'Seçili Değil';
 
     return GridView.count(
@@ -621,7 +657,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       crossAxisCount: 2,
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
-      childAspectRatio: 1.6, // Biraz daha yatay
+      childAspectRatio: 1.6,
       children: [
         _buildDashboardCard(
           title: 'Durum',
@@ -638,13 +674,13 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         ),
         _buildDashboardCard(
           title: 'IP Adresi',
-          value: _isConnected ? '104.28.15.4' : '---.---.---.---',
+          value: _isConnected ? _currentIp : _selectedServer?.address ?? '---.---.---.---',
           icon: Icons.public,
           color: Colors.blue,
         ),
         _buildDashboardCard(
           title: 'Protokol',
-          value: 'VLESS + TLS',
+          value: _selectedServer?.protocol.toUpperCase() ?? '--',
           icon: Icons.lock,
           color: Colors.orange,
         ),
@@ -926,41 +962,38 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                             _selectedServer = server;
                           });
                         },
-                        trailing: PopupMenuButton<String>(
-                          icon: Icon(Icons.more_vert, color: colorScheme.onSurfaceVariant),
-                          onSelected: (value) {
-                            if (value == 'edit') {
-                              _showServerEditDialog(parentSub, server);
-                            } else if (value == 'delete') {
-                              _deleteServer(parentSub, server);
-                            } else if (value == 'copy') {
-                              // Copy logic
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Server URL kopyalandı')),
-                              );
-                            }
-                          },
-                          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                            const PopupMenuItem<String>(
-                              value: 'edit',
-                              child: Row(
-                                children: [Icon(Icons.edit, size: 20), SizedBox(width: 8), Text('Düzenle')],
-                              ),
-                            ),
-                            const PopupMenuItem<String>(
-                              value: 'copy',
-                              child: Row(
-                                children: [Icon(Icons.content_copy, size: 20), SizedBox(width: 8), Text('Kopyala')],
-                              ),
-                            ),
-                            const PopupMenuItem<String>(
-                              value: 'delete',
-                              child: Row(
-                                children: [Icon(Icons.delete, color: Colors.red, size: 20), SizedBox(width: 8), Text('Sil', style: TextStyle(color: Colors.red))],
-                              ),
-                            ),
-                          ],
-                        ),
+                         trailing: PopupMenuButton<String>(
+                           icon: Icon(Icons.more_vert, color: colorScheme.onSurfaceVariant),
+                           onSelected: (value) {
+                             if (value == 'edit') {
+                               _showServerEditDialog(parentSub, server);
+                             } else if (value == 'delete') {
+                               _deleteServer(parentSub, server);
+                             } else if (value == 'copy') {
+                               _copyServerUrl(server);
+                             }
+                           },
+                           itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                             const PopupMenuItem<String>(
+                               value: 'edit',
+                               child: Row(
+                                 children: [Icon(Icons.edit, size: 20), SizedBox(width: 8), Text('Düzenle')],
+                               ),
+                             ),
+                             const PopupMenuItem<String>(
+                               value: 'copy',
+                               child: Row(
+                                 children: [Icon(Icons.content_copy, size: 20), SizedBox(width: 8), Text('Kopyala')],
+                               ),
+                             ),
+                             const PopupMenuItem<String>(
+                               value: 'delete',
+                               child: Row(
+                                 children: [Icon(Icons.delete, color: Colors.red, size: 20), SizedBox(width: 8), Text('Sil', style: TextStyle(color: Colors.red))],
+                               ),
+                             ),
+                           ],
+                         ),
                       ),
                     );
                   },
@@ -1157,6 +1190,10 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                     );
                     await ServerService.updateSubscription(index, updatedSub);
                     await _loadSubscriptions();
+
+                    if (url != sub.url) {
+                      await _refreshSubscription(updatedSub);
+                    }
                   }
                 } else {
                   final newSub = VPNSubscription(
@@ -1181,10 +1218,83 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   void _deleteServer(VPNSubscription parentSub, VpnServer server) async {
-      await server.delete();
-      if (_selectedServer == server) {
-        setState(() => _selectedServer = null);
+    await server.delete();
+    if (_selectedServer?.id == server.id) {
+      setState(() => _selectedServer = null);
+    }
+  }
+
+  Future<void> _copyServerUrl(VpnServer server) async {
+    final data = server.parsedData;
+    final protocol = data['type'] ?? 'vless';
+
+    String url = '';
+
+    if (protocol == 'vless') {
+      final uuid = data['uuid'] ?? '';
+      final address = data['address'] ?? data['server'] ?? '';
+      final port = data['port'] ?? data['server_port'] ?? 443;
+      final params = <String, dynamic>{};
+
+      if (data['security'] != null) params['security'] = data['security'];
+      if (data['type'] != null) params['type'] = data['transport'] ?? data['network'];
+      if (data['path'] != null) params['path'] = data['path'];
+      if (data['host'] != null) params['host'] = data['host'];
+      if (data['sni'] != null) params['sni'] = data['sni'];
+      if (data['alpn'] != null) params['alpn'] = data['alpn'];
+      if (data['allowInsecure'] == true) params['allowInsecure'] = '1';
+      if (data['fingerprint'] != null) params['fp'] = data['fingerprint'];
+      if (data['pbk'] != null) params['pbk'] = data['pbk'];
+      if (data['sid'] != null) params['sid'] = data['sid'];
+      if (data['serviceName'] != null) params['serviceName'] = data['serviceName'];
+
+      final queryString = params.entries
+          .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value.toString())}')
+          .join('&');
+
+      url = 'vless://$uuid@$address:$port${queryString.isNotEmpty ? '?$queryString' : ''}';
+    } else if (protocol == 'vmess') {
+      final vmessConfig = {
+        'v': '2',
+        'ps': server.name,
+        'add': data['address'] ?? data['server'] ?? '',
+        'port': data['port'] ?? data['server_port'] ?? 443,
+        'id': data['uuid'] ?? '',
+        'aid': '0',
+        'net': data['transport'] ?? data['network'] ?? 'tcp',
+        'type': 'none',
+        'host': data['host'] ?? '',
+        'path': data['path'] ?? '',
+        'tls': data['security'] == 'tls' ? 'tls' : '',
+        'sni': data['sni'] ?? data['host'] ?? '',
+      };
+
+      final jsonStr = jsonEncode(vmessConfig);
+      url = 'vmess://${base64Encode(utf8.encode(jsonStr))}';
+    } else if (protocol == 'trojan') {
+      final password = data['password'] ?? '';
+      final address = data['address'] ?? data['server'] ?? '';
+      final port = data['port'] ?? data['server_port'] ?? 443;
+
+      url = 'trojan://$password@$address:$port';
+    } else if (protocol == 'ss') {
+      final method = data['method'] ?? 'aes-256-gcm';
+      final password = data['password'] ?? '';
+      final address = data['address'] ?? data['server'] ?? '';
+      final port = data['port'] ?? data['server_port'] ?? 8388;
+
+      final auth = base64Encode(utf8.encode('$method:$password'));
+      url = 'ss://$auth@$address:$port';
+    }
+
+    if (url.isNotEmpty && mounted) {
+      await Clipboard.setData(ClipboardData(text: url));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Server URL kopyalandı')),
+        );
       }
+    }
   }
 
   void _showServerEditDialog(VPNSubscription sub, VpnServer server) {
