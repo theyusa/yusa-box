@@ -60,7 +60,7 @@ class DatabaseService {
   }
 
   // Individual Server Operations
-  static Future<void> saveServer(VPNServer server) async {
+  static Future<void> saveServer(VpnServer server) async {
     await _serversBox.put(server.id, server.toJson());
   }
 
@@ -68,12 +68,12 @@ class DatabaseService {
     await _serversBox.delete(serverId);
   }
 
-  static List<VPNServer> loadAllServers() {
-    final servers = <VPNServer>[];
+  static List<VpnServer> loadAllServers() {
+    final servers = <VpnServer>[];
     for (final key in _serversBox.keys) {
       final data = _serversBox.get(key);
       if (data != null) {
-        servers.add(VPNServer.fromJson(data as Map<String, dynamic>));
+        servers.add(VpnServer.fromJson(data as Map<String, dynamic>));
       }
     }
     return servers;

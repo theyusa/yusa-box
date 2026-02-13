@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'dart:convert'; // Added for jsonEncode
 import 'strings.dart';
 import 'providers/theme_provider.dart';
 import 'models/vpn_models.dart';
@@ -240,7 +241,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
   // State: Dynamic Data
   List<VPNSubscription> _subscriptions = []; // Computed from Hive
-  VPNServer? _selectedServer; // Selected Server Object
+  VpnServer? _selectedServer; // Selected Server Object
   
   // State: Filter and Sort
   String? _selectedSubId; // null = All
@@ -285,25 +286,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   Future<void> _loadSubscriptions() async {
-    _addLog('Database\'den abonelikler yükleniyor...');
-    try {
-      final loadedSubs = DatabaseService.loadSubscriptions();
-      setState(() {
-        _subscriptions = loadedSubs;
-        if (_subscriptions.isNotEmpty) {
-          _addLog('${_subscriptions.length} abonelik yüklendi');
-          int totalServers = 0;
-          for (final sub in _subscriptions) {
-            totalServers += sub.servers.length;
-          }
-          _addLog('Toplam $totalServers server bulundu');
-        } else {
-          _addLog('Database BOŞ - Abonelik ekleyin');
-        }
-      });
-    } catch (e) {
-      _addLog('Abonelikleri yükleme hatası: ${e.toString()}');
-    }
+    // Deprecated: Handled by ValueListenableBuilder
   }
 
   Future<void> _saveSubscriptions() async {
@@ -734,7 +717,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     }
 
     // 1. Filter Servers
-    List<VPNServer> filteredServers = [];
+    List<VpnServer> filteredServers = [];
     if (_selectedSubId == null) {
       // Flatten all
       for (var sub in _subscriptions) {
@@ -1181,81 +1164,207 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     );
   }
 
-  void _deleteServer(VPNSubscription parentSub, VPNServer server) async {
+  void _deleteServer(VPNSubscription parentSub, VpnServer server) async {
       await server.delete();
       if (_selectedServer == server) {
         setState(() => _selectedServer = null);
       }
   }
 
-  void _showServerEditDialog(VPNSubscription sub, VPNServer server) {
+  void _showServerEditDialog(VPNSubscription sub, VpnServer server) {
+    // Controllers
     final nameController = TextEditingController(text: server.name);
-    
+    final addressController = TextEditingController(text: server.address);
+    final portController = TextEditingController(text: server.port.toString());
+    final uuidController = TextEditingController(text: server.uuid ?? '');
+    final sniController = TextEditingController(text: server.sni ?? '');
+    final alpnController = TextEditingController(text: server.alpn ?? '');
+    final fingerprintController = TextEditingController(text: server.fingerprint ?? '');
+    final hostController = TextEditingController(text: server.host ?? '');
+    final pathController = TextEditingController(text: server.path ?? '');
+
+    // State variables
+    String selectedProtocol = server.protocol.toUpperCase();
+    String selectedSecurity = server.security;
+    String selectedTransport = server.transport;
+    bool allowInsecure = server.allowInsecure;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Server Düzenle'),
-        content: TextField(
-          controller: nameController,
-          decoration: const InputDecoration(labelText: 'Server Adı'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('İptal'),
+      barrierDismissible: false,
+      builder: (context) => Dialog.fullscreen(
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Server Düzenle'),
+            leading: IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => Navigator.pop(context),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  final navigator = Navigator.of(context);
+                  final scaffoldMessenger = ScaffoldMessenger.of(context);
+                  
+                  // Update fields using the dynamic helper
+                  server.updateField('name', nameController.text);
+                  server.updateField('address', addressController.text);
+                  server.updateField('port', int.tryParse(portController.text) ?? 443);
+                  server.updateField('uuid', uuidController.text);
+                  server.updateField('protocol', selectedProtocol.toLowerCase());
+                  server.updateField('security', selectedSecurity);
+                  server.updateField('transport', selectedTransport);
+                  server.updateField('allowInsecure', allowInsecure);
+                  
+                  server.updateField('sni', sniController.text.isNotEmpty ? sniController.text : null);
+                  server.updateField('alpn', alpnController.text.isNotEmpty ? alpnController.text.split(',') : null);
+                  server.updateField('fingerprint', fingerprintController.text.isNotEmpty ? fingerprintController.text : null);
+                  server.updateField('host', hostController.text.isNotEmpty ? hostController.text : null);
+                  server.updateField('path', pathController.text.isNotEmpty ? pathController.text : null);
+
+                  await server.save(); 
+                  
+                  navigator.pop();
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(content: Text('Server güncellendi')),
+                  );
+                },
+                child: Text(AppStrings.get('save')),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () async {
-              server.name = nameController.text;
-              await server.save(); // HiveObject save
-              if (mounted) Navigator.pop(context);
+          body: StatefulBuilder(
+            builder: (context, setDialogState) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSettingsSection('Temel Bilgiler', [
+                      TextField(
+                        controller: nameController,
+                        decoration: const InputDecoration(labelText: 'İsim', prefixIcon: Icon(Icons.label)),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              controller: addressController,
+                              decoration: const InputDecoration(labelText: 'Adres', prefixIcon: Icon(Icons.dns)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 1,
+                            child: TextField(
+                              controller: portController,
+                              decoration: const InputDecoration(labelText: 'Port', prefixIcon: Icon(Icons.settings_ethernet)),
+                              keyboardType: TextInputType.number,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ]),
+                    
+                    const SizedBox(height: 16),
+                    _buildSettingsSection('Protokol', [
+                      DropdownButtonFormField<String>(
+                        value: ['VLESS', 'VMESS', 'TROJAN', 'SHADOWSOCKS'].contains(selectedProtocol) ? selectedProtocol : 'VLESS',
+                        decoration: const InputDecoration(labelText: 'Protokol', prefixIcon: Icon(Icons.vpn_key)),
+                        items: ['VLESS', 'VMESS', 'TROJAN', 'SHADOWSOCKS'].map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
+                        onChanged: (v) => setDialogState(() => selectedProtocol = v!),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: uuidController,
+                        decoration: const InputDecoration(labelText: 'UUID / Password', prefixIcon: Icon(Icons.password)),
+                      ),
+                    ]),
+
+                    const SizedBox(height: 16),
+                    _buildSettingsSection('Güvenlik (TLS)', [
+                      DropdownButtonFormField<String>(
+                        value: selectedSecurity,
+                        decoration: const InputDecoration(labelText: 'TLS Modu', prefixIcon: Icon(Icons.security)),
+                        items: ['none', 'tls', 'reality'].map((s) => DropdownMenuItem(value: s, child: Text(s.toUpperCase()))).toList(),
+                        onChanged: (v) => setDialogState(() => selectedSecurity = v!),
+                      ),
+                      SwitchListTile(
+                        title: const Text('Güvensiz Bağlantıya İzin Ver'),
+                        value: allowInsecure,
+                        onChanged: (v) => setDialogState(() => allowInsecure = v),
+                      ),
+                      if (selectedSecurity != 'none') ...[
+                        TextField(
+                          controller: sniController,
+                          decoration: const InputDecoration(labelText: 'SNI', prefixIcon: Icon(Icons.domain)),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: fingerprintController,
+                          decoration: const InputDecoration(labelText: 'Fingerprint', prefixIcon: Icon(Icons.fingerprint)),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: alpnController,
+                          decoration: const InputDecoration(labelText: 'ALPN (virgülle ayır)', prefixIcon: Icon(Icons.layers)),
+                        ),
+                      ],
+                    ]),
+
+                    const SizedBox(height: 16),
+                    _buildSettingsSection('Transport', [
+                      DropdownButtonFormField<String>(
+                        value: selectedTransport,
+                        decoration: const InputDecoration(labelText: 'Transport', prefixIcon: Icon(Icons.swap_calls)),
+                        items: ['tcp', 'ws', 'grpc', 'http'].map((t) => DropdownMenuItem(value: t, child: Text(t.toUpperCase()))).toList(),
+                        onChanged: (v) => setDialogState(() => selectedTransport = v!),
+                      ),
+                      if (selectedTransport != 'tcp') ...[
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: pathController,
+                          decoration: const InputDecoration(labelText: 'Path / Service Name', prefixIcon: Icon(Icons.folder)),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: hostController,
+                          decoration: const InputDecoration(labelText: 'Host', prefixIcon: Icon(Icons.computer)),
+                        ),
+                      ]
+                    ]),
+                  ],
+                ),
+              );
             },
-            child: const Text('Kaydet'),
           ),
-        ],
+        ),
       ),
     );
   }
 
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: uuidController,
-                    decoration: const InputDecoration(
-                      labelText: 'UUID / Password',
-                      prefixIcon: Icon(Icons.key),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+  void _deleteServer(VPNSubscription sub, VpnServer server) async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
+    // HiveObject delete method handles removal from box
+    await server.delete();
+    
+    // Update local state if needed (though ValueListenableBuilder should handle UI)
+    if (_selectedServer?.key == server.key) { // Use key for comparison
+      setState(() {
+        _selectedServer = null;
+        _isConnected = false;
+      });
+    }
+    
+    scaffoldMessenger.showSnackBar(
+      const SnackBar(content: Text('Server silindi')),
+    );
+  }
 
-                  // Security Section
-                  Text(
-                    'Güvenlik Ayarları',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedSecurity,
-                    decoration: const InputDecoration(
-                      labelText: 'Security',
-                      prefixIcon: Icon(Icons.security),
-                    ),
-                    items: ['tls', 'none', 'xtls', 'reality']
-                        .map((security) => DropdownMenuItem(
-                              value: security,
-                              child: Text(security.toUpperCase()),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setDialogState(() {
-                          selectedSecurity = value;
-                        });
-                      }
+
                     },
                   ),
                   const SizedBox(height: 8),
@@ -1355,7 +1464,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   );
 }
 
-void _deleteServer(VPNSubscription sub, VPNServer server) async {
+void _deleteServer(VPNSubscription sub, VpnServer server) async {
    final scaffoldMessenger = ScaffoldMessenger.of(context);
    setState(() {
     sub.servers.remove(server);
@@ -1723,110 +1832,48 @@ void _deleteServer(VPNSubscription sub, VPNServer server) async {
     );
   }
 
-  String _generateSingboxConfig(VPNServer server) {
-    String protocol = 'vless';
+  String _generateSingboxConfig(VpnServer server) {
+    final outbound = server.toSingboxOutbound();
     
-    if (server.protocol == 'VMESS') {
-      protocol = 'vmess';
-    } else if (server.protocol == 'VLESS') {
-      protocol = 'vless';
-    } else if (server.protocol == 'TROJAN') {
-      protocol = 'trojan';
-    } else if (server.protocol == 'SS') {
-      protocol = 'shadowsocks';
-    }
-
-    // Build TLS config
-    String tlsConfig = '';
-    if (server.security == 'tls') {
-      tlsConfig = '''
-      "tls": {
-        "enabled": true,
-        "server_name": "${server.sni ?? server.address}",
-        "insecure": ${server.allowInsecure},
-        ${server.fingerprint != null ? '"utls": {"enabled": true, "fingerprint": "${server.fingerprint}"},' : ''}
-        ${server.alpn != null ? '"alpn": ["${server.alpn}"],' : ''}
-      },''';
-    }
-
-    // Build transport config
-    String transportConfig = '';
-    if (server.transport == 'ws') {
-      transportConfig = '''
-      "transport": {
-        "type": "ws",
-        "path": "${server.path ?? '/'}",
-        ${server.host != null ? '"headers": {"Host": "${server.host}"},' : ''}
-      },''';
-    } else if (server.transport == 'grpc') {
-      transportConfig = '''
-      "transport": {
-        "type": "grpc",
-        "service_name": "${server.path ?? 'grpc'}",
-      },''';
-    }
-
-    return '''
-{
-  "log": {
-    "level": "info",
-    "timestamp": true
-  },
-  "dns": {
-    "servers": [
-      {
-        "tag": "google",
-        "address": "8.8.8.8"
+    final configMap = {
+      "log": {
+        "level": "info",
+        "timestamp": true
       },
-      {
-        "tag": "cloudflare",
-        "address": "1.1.1.1"
+      "dns": {
+        "servers": [
+          {"tag": "google", "address": "8.8.8.8"},
+          {"tag": "cloudflare", "address": "1.1.1.1"}
+        ],
+        "final": "google"
+      },
+      "inbounds": [
+        {
+          "type": "tun",
+          "tag": "tun-in",
+          "inet4_address": "172.19.0.1/30",
+          "auto_route": true,
+          "strict_route": true,
+          "stack": "system",
+          "sniff": true
+        }
+      ],
+      "outbounds": [
+        outbound,
+        {"type": "direct", "tag": "direct"},
+        {"type": "block", "tag": "block"}
+      ],
+      "route": {
+        "final": "proxy",
+        "rules": [
+          {"geoip": "private", "outbound": "direct"}
+        ]
       }
-    ],
-    "final": "google"
-  },
-  "inbounds": [
-    {
-      "type": "tun",
-      "tag": "tun-in",
-      "inet4_address": "172.19.0.1/30",
-      "auto_route": true,
-      "strict_route": true,
-      "stack": "system",
-      "sniff": true
-    }
-  ],
-  "outbounds": [
-    {
-      "type": "$protocol",
-      "tag": "proxy",
-      "server": "${server.address}",
-      "server_port": ${server.port},
-      "uuid": "${server.uuid}",
-      $tlsConfig
-      $transportConfig
-    },
-    {
-      "type": "direct",
-      "tag": "direct"
-    },
-    {
-      "type": "block",
-      "tag": "block"
-    }
-  ],
-  "route": {
-    "final": "proxy",
-    "rules": [
-      {
-        "geoip": "private",
-        "outbound": "direct"
-      }
-    ]
+    };
+
+    return jsonEncode(configMap);
   }
-}
-''';
-  }
+
 
   Widget _buildSettingsSection(String title, List<Widget> children) {
     final colorScheme = Theme.of(context).colorScheme;

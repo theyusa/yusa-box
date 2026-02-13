@@ -114,25 +114,6 @@ class VpnServer extends HiveObject {
     );
   }
 }
-    return {
-      'id': id,
-      'name': name,
-      'config': config,
-      'ping': ping,
-      'isActive': isActive,
-    };
-  }
-
-  factory VpnServer.fromJson(Map<String, dynamic> json) {
-    return VpnServer(
-      id: json['id'] ?? '',
-      name: json['name'] ?? '',
-      config: json['config'] ?? '',
-      ping: json['ping'] ?? '--',
-      isActive: json['isActive'] ?? false,
-    );
-  }
-}
 
 @HiveType(typeId: 1)
 class VPNSubscription extends HiveObject {
