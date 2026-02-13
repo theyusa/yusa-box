@@ -285,6 +285,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     });
   }
 
+  // ignore: unused_element
   Future<void> _loadSubscriptions() async {
     // Deprecated: Handled by ValueListenableBuilder
   }
