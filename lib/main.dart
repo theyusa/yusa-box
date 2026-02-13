@@ -306,6 +306,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     await prefs.setString('subscriptions', subsJson);
   }
 
+  // ignore: unused_element
   Future<void> _addSubscription(String name, String url) async {
     final subscription = VPNSubscription(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -324,6 +325,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     _addLog('Abonelik eklendi: $name');
   }
 
+  // ignore: unused_element
   Future<void> _deleteSubscription(VPNSubscription sub) async {
     setState(() {
       _subscriptions.removeWhere((s) => s.id == sub.id);

@@ -263,6 +263,7 @@ class SubscriptionService {
         fingerprint: fingerprint,
       );
     } catch (e) {
+      // ignore: avoid_print
       print('VLESS parse error: $e');
       return VPNServer(
         id: 'unknown',
