@@ -339,6 +339,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           sub.servers = servers;
           _addLog('${sub.name}: ${servers.length} server bulundu.');
         });
+        await _saveSubscriptions();
       }
     } catch (e) {
       _addLog('Hata: ${e.toString()}');
@@ -1130,24 +1131,30 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             child: Text(AppStrings.get('cancel')),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final name = nameController.text.trim();
               final url = urlController.text.trim();
               if (name.isNotEmpty && url.isNotEmpty) {
-                setState(() {
-                  if (isEditing) {
+                if (isEditing) {
+                  setState(() {
                     sub.name = name;
                     sub.url = url;
-                  } else {
-                    final newSub = VPNSubscription(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      name: name,
-                      url: url,
-                    );
-                     _subscriptions.add(newSub);
-                     _refreshSubscription(newSub);
-                  }
-                });
+                  });
+                  await _saveSubscriptions();
+                } else {
+                  final newSub = VPNSubscription(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    name: name,
+                    url: url,
+                  );
+                  setState(() {
+                    _subscriptions.add(newSub);
+                  });
+                  await _refreshSubscription(newSub);
+                }
+              }
+              if (mounted) {
+                // ignore: use_build_context_synchronously
                 Navigator.pop(context);
               }
             },
