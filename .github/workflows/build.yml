@@ -2,9 +2,9 @@ name: Flutter Build
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, feature/singbox-integration-v2 ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, develop, feature/singbox-integration-v2 ]
   workflow_dispatch:
 
 jobs:
