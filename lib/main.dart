@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dynamic_color/dynamic_color.dart';
@@ -1274,7 +1273,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: selectedProtocol,
+                    initialValue: selectedProtocol,
                     decoration: const InputDecoration(
                       labelText: 'Protokol',
                       prefixIcon: Icon(Icons.swap_horiz),
@@ -1313,7 +1312,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: selectedSecurity,
+                    initialValue: selectedSecurity,
                     decoration: const InputDecoration(
                       labelText: 'Security',
                       prefixIcon: Icon(Icons.security),
@@ -1382,7 +1381,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: selectedTransport,
+                    initialValue: selectedTransport,
                     decoration: const InputDecoration(
                       labelText: 'Transport',
                       prefixIcon: Icon(Icons.route),
