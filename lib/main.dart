@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -252,7 +253,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
   // State: VPN Session
   DateTime? _connectionStartTime;
-  String _currentIp = '---.---.---.---';
+  final String _currentIp = '---.---.---.---';
 
   // Logs
   final List<String> _logs = [
