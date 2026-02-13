@@ -1057,7 +1057,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                     if (value == 'edit') {
                       _showSubscriptionDialog(sub);
                     } else if (value == 'delete') {
-                      _showDeleteSubscriptionDialog(sub);
+                      _deleteSubscription(sub);
                     }
                   },
                   itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
@@ -1270,7 +1270,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                     const SizedBox(height: 16),
                     _buildSettingsSection('Protokol', [
                       DropdownButtonFormField<String>(
-                        value: ['VLESS', 'VMESS', 'TROJAN', 'SHADOWSOCKS'].contains(selectedProtocol) ? selectedProtocol : 'VLESS',
+                        initialValue: ['VLESS', 'VMESS', 'TROJAN', 'SHADOWSOCKS'].contains(selectedProtocol) ? selectedProtocol : 'VLESS',
                         decoration: const InputDecoration(labelText: 'Protokol', prefixIcon: Icon(Icons.vpn_key)),
                         items: ['VLESS', 'VMESS', 'TROJAN', 'SHADOWSOCKS'].map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
                         onChanged: (v) => setDialogState(() => selectedProtocol = v!),
@@ -1285,7 +1285,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                     const SizedBox(height: 16),
                     _buildSettingsSection('Güvenlik (TLS)', [
                       DropdownButtonFormField<String>(
-                        value: selectedSecurity,
+                        initialValue: selectedSecurity,
                         decoration: const InputDecoration(labelText: 'TLS Modu', prefixIcon: Icon(Icons.security)),
                         items: ['none', 'tls', 'reality'].map((s) => DropdownMenuItem(value: s, child: Text(s.toUpperCase()))).toList(),
                         onChanged: (v) => setDialogState(() => selectedSecurity = v!),
@@ -1316,7 +1316,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                     const SizedBox(height: 16),
                     _buildSettingsSection('Transport', [
                       DropdownButtonFormField<String>(
-                        value: selectedTransport,
+                        initialValue: selectedTransport,
                         decoration: const InputDecoration(labelText: 'Transport', prefixIcon: Icon(Icons.swap_calls)),
                         items: ['tcp', 'ws', 'grpc', 'http'].map((t) => DropdownMenuItem(value: t, child: Text(t.toUpperCase()))).toList(),
                         onChanged: (v) => setDialogState(() => selectedTransport = v!),

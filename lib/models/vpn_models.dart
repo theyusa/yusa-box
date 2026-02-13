@@ -73,26 +73,7 @@ class VpnServer extends HiveObject {
     config = jsonEncode(data);
   }
 
-  // Setter'ları da dinamik yapıya yönlendirelim
-  set name(String value) {
-    // Hive alanı, doğrudan güncellenir.
-    // Ancak JSON içinde de tutuyorsak orayı da güncellemeliyiz.
-    // Bu örnekte 'name' ayrı bir Hive alanı olarak duruyor.
-    // İsterseniz sync edebilirsiniz:
-    final data = _parsedData;
-    data['name'] = value;
-    config = jsonEncode(data);
-    // Hive'daki 'name' field'ı setter ile otomatik güncellenmez, super.name yok.
-    // Dart'ta bu şekilde field override edemem çünkü name bir alan.
-    // Hive generator bu alanı kullanıyor.
-    // Bu yüzden setter yerine method kullanmak daha güvenli veya bu alanı sadece Hive'da tutmak.
-    // Kullanıcı UI'da name'i değiştirdiğinde server.name = "yeni" der.
-    // Bu durumda sadece Hive alanı değişir. config içindeki name değişmez.
-    // Tutarlılık için updateField kullanmak daha iyi.
-  }
-  // Not: HiveObject üzerindeki alanlar public olduğu için setter override etmek zordur.
-  // En iyisi name alanını kullanmak ve config içindeki name'i senkronize etmemek (veya kaydederken yapmak).
-  // Şimdilik basit bırakıyorum.
+
 
   Map<String, dynamic> toJson() {
     return {

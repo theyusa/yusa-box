@@ -276,14 +276,25 @@ class SubscriptionService {
   }
 
   Map<String, dynamic> _parseShadowsocksToMap(String ssUrl) {
-     // Simplified implementation for SS
      try {
-        final String uri = ssUrl.replaceFirst('ss://', '');
-        // ... (SS parsing logic similar to previous, but returning Map)
-        // For brevity, assuming standard parsing logic here returning map
-        return {'type': 'ss', 'address': 'example.com', 'port': 8388, 'name': 'SS Server'}; 
+        final uri = ssUrl.replaceFirst('ss://', '');
+        final parts = uri.split('@');
+        if (parts.length != 2) throw FormatException('Invalid SS URL');
+        
+        final authParts = parts[0].split(':');
+        final serverParts = parts[1].split(':');
+        final portAndName = serverParts[1].split('#');
+        
+        return {
+          'type': 'ss',
+          'method': authParts[0],
+          'password': authParts[1],
+          'address': serverParts[0],
+          'port': int.tryParse(portAndName[0]) ?? 8388,
+          'name': Uri.decodeComponent(portAndName.length > 1 ? portAndName[1] : 'SS Server'),
+        };
      } catch (e) {
-        return {'type': 'error', 'name': 'SS Parse Error'};
+        return {'type': 'error', 'name': 'SS Parse Error: ${e.toString()}'};
      }
   }
 
