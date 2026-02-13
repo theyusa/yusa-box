@@ -814,105 +814,111 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
     return Column(
       children: [
-        // Header & Actions
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Server Listesi',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              Row(
-                children: [
-                  // Ping Test Action
-                  IconButton(
-                    tooltip: 'Ping Testi',
-                    icon: const Icon(Icons.network_check),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Tüm serverlar için ping testi başlatıldı...')),
-                      );
-                      // Simulate ping update logic here if needed
-                    },
-                  ),
-                  // Sort Action
-                  PopupMenuButton<SortOption>(
-                    icon: const Icon(Icons.sort),
-                    tooltip: 'Sırala',
-                    initialValue: _currentSort,
-                    onSelected: (SortOption item) {
-                      setState(() {
-                        _currentSort = item;
-                      });
-                    },
-                    itemBuilder: (BuildContext context) => <PopupMenuEntry<SortOption>>[
-                      const PopupMenuItem<SortOption>(
-                        value: SortOption.name,
-                        child: Text('İsim (A-Z)'),
-                      ),
-                      const PopupMenuItem<SortOption>(
-                        value: SortOption.ping,
-                        child: Text('Ping (Düşük - Yüksek)'),
-                      ),
-                    ],
-                  ),
-                  // Update Action (Refresh all subs)
-                  IconButton(
-                    tooltip: 'Tümünü Güncelle',
-                    icon: const Icon(Icons.refresh),
-                    onPressed: () async {
-                      final scaffoldMessenger = ScaffoldMessenger.of(context);
-                      for (var sub in _subscriptions) {
-                        await _refreshSubscription(sub);
-                      }
-                      if (mounted) {
-                        scaffoldMessenger.showSnackBar(
-                          const SnackBar(content: Text('Tüm abonelikler güncellendi')),
+        // Header & Actions (Fixed with opaque background)
+        Container(
+          color: colorScheme.surface,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Server Listesi',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                Row(
+                  children: [
+                    // Ping Test Action
+                    IconButton(
+                      tooltip: 'Ping Testi',
+                      icon: const Icon(Icons.network_check),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Tüm serverlar için ping testi başlatıldı...')),
                         );
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ],
+                        // Simulate ping update logic here if needed
+                      },
+                    ),
+                    // Sort Action
+                    PopupMenuButton<SortOption>(
+                      icon: const Icon(Icons.sort),
+                      tooltip: 'Sırala',
+                      initialValue: _currentSort,
+                      onSelected: (SortOption item) {
+                        setState(() {
+                          _currentSort = item;
+                        });
+                      },
+                      itemBuilder: (BuildContext context) => <PopupMenuEntry<SortOption>>[
+                        const PopupMenuItem<SortOption>(
+                          value: SortOption.name,
+                          child: Text('İsim (A-Z)'),
+                        ),
+                        const PopupMenuItem<SortOption>(
+                          value: SortOption.ping,
+                          child: Text('Ping (Düşük - Yüksek)'),
+                        ),
+                      ],
+                    ),
+                    // Update Action (Refresh all subs)
+                    IconButton(
+                      tooltip: 'Tümünü Güncelle',
+                      icon: const Icon(Icons.refresh),
+                      onPressed: () async {
+                        final scaffoldMessenger = ScaffoldMessenger.of(context);
+                        for (var sub in _subscriptions) {
+                          await _refreshSubscription(sub);
+                        }
+                        if (mounted) {
+                          scaffoldMessenger.showSnackBar(
+                            const SnackBar(content: Text('Tüm abonelikler güncellendi')),
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
 
-        // Category Filter (Chips)
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  label: const Text('Tümü'),
-                  selected: _selectedSubId == null,
-                  onSelected: (bool selected) {
-                    setState(() {
-                      _selectedSubId = null;
-                    });
-                  },
-                ),
-              ),
-              ..._subscriptions.map((sub) {
-                return Padding(
+        // Category Filter (Chips) (Fixed with opaque background)
+        Container(
+          color: colorScheme.surface,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: ChoiceChip(
-                    label: Text(sub.name),
-                    selected: _selectedSubId == sub.id,
+                    label: const Text('Tümü'),
+                    selected: _selectedSubId == null,
                     onSelected: (bool selected) {
                       setState(() {
-                        _selectedSubId = selected ? sub.id : null;
+                        _selectedSubId = null;
                       });
                     },
                   ),
-                );
-              }),
-            ],
+                ),
+                ..._subscriptions.map((sub) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(sub.name),
+                      selected: _selectedSubId == sub.id,
+                      onSelected: (bool selected) {
+                        setState(() {
+                          _selectedSubId = selected ? sub.id : null;
+                        });
+                      },
+                    ),
+                  );
+                }),
+              ],
+            ),
           ),
         ),
 
@@ -1399,6 +1405,19 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           ),
           body: StatefulBuilder(
             builder: (context, setDialogState) {
+              final colorScheme = Theme.of(context).colorScheme;
+              final inputDecoration = InputDecoration(
+                filled: true,
+                fillColor: colorScheme.surfaceContainerHighest,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                focusedErrorBorder: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
+              );
+
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -1407,16 +1426,21 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                     _buildSettingsSection('Temel Bilgiler', [
                       TextField(
                         controller: nameController,
-                        decoration: const InputDecoration(labelText: 'İsim', prefixIcon: Icon(Icons.label)),
+                        decoration: inputDecoration.copyWith(
+                          labelText: 'İsim',
+                          prefixIcon: const Icon(Icons.label),
+                        ),
                       ),
-                      const SizedBox(height: 8),
                       Row(
                         children: [
                           Expanded(
                             flex: 2,
                             child: TextField(
                               controller: addressController,
-                              decoration: const InputDecoration(labelText: 'Adres', prefixIcon: Icon(Icons.dns)),
+                              decoration: inputDecoration.copyWith(
+                                labelText: 'Adres',
+                                prefixIcon: const Icon(Icons.dns),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -1424,34 +1448,43 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                             flex: 1,
                             child: TextField(
                               controller: portController,
-                              decoration: const InputDecoration(labelText: 'Port', prefixIcon: Icon(Icons.settings_ethernet)),
+                              decoration: inputDecoration.copyWith(
+                                labelText: 'Port',
+                                prefixIcon: const Icon(Icons.settings_ethernet),
+                              ),
                               keyboardType: TextInputType.number,
                             ),
                           ),
                         ],
                       ),
                     ]),
-                    
-                    const SizedBox(height: 16),
+
                     _buildSettingsSection('Protokol', [
                       DropdownButtonFormField<String>(
                         initialValue: ['VLESS', 'VMESS', 'TROJAN', 'SHADOWSOCKS'].contains(selectedProtocol) ? selectedProtocol : 'VLESS',
-                        decoration: const InputDecoration(labelText: 'Protokol', prefixIcon: Icon(Icons.vpn_key)),
+                        decoration: inputDecoration.copyWith(
+                          labelText: 'Protokol',
+                          prefixIcon: const Icon(Icons.vpn_key),
+                        ),
                         items: ['VLESS', 'VMESS', 'TROJAN', 'SHADOWSOCKS'].map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
                         onChanged: (v) => setDialogState(() => selectedProtocol = v!),
                       ),
-                      const SizedBox(height: 8),
                       TextField(
                         controller: uuidController,
-                        decoration: const InputDecoration(labelText: 'UUID / Password', prefixIcon: Icon(Icons.password)),
+                        decoration: inputDecoration.copyWith(
+                          labelText: 'UUID / Password',
+                          prefixIcon: const Icon(Icons.password),
+                        ),
                       ),
                     ]),
 
-                    const SizedBox(height: 16),
                     _buildSettingsSection('Güvenlik (TLS)', [
                       DropdownButtonFormField<String>(
                         initialValue: selectedSecurity,
-                        decoration: const InputDecoration(labelText: 'TLS Modu', prefixIcon: Icon(Icons.security)),
+                        decoration: inputDecoration.copyWith(
+                          labelText: 'TLS Modu',
+                          prefixIcon: const Icon(Icons.security),
+                        ),
                         items: ['none', 'tls', 'reality'].map((s) => DropdownMenuItem(value: s, child: Text(s.toUpperCase()))).toList(),
                         onChanged: (v) => setDialogState(() => selectedSecurity = v!),
                       ),
@@ -1463,39 +1496,52 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                       if (selectedSecurity != 'none') ...[
                         TextField(
                           controller: sniController,
-                          decoration: const InputDecoration(labelText: 'SNI', prefixIcon: Icon(Icons.domain)),
+                          decoration: inputDecoration.copyWith(
+                            labelText: 'SNI',
+                            prefixIcon: const Icon(Icons.domain),
+                          ),
                         ),
-                        const SizedBox(height: 8),
                         TextField(
                           controller: fingerprintController,
-                          decoration: const InputDecoration(labelText: 'Fingerprint', prefixIcon: Icon(Icons.fingerprint)),
+                          decoration: inputDecoration.copyWith(
+                            labelText: 'Fingerprint',
+                            prefixIcon: const Icon(Icons.fingerprint),
+                          ),
                         ),
-                        const SizedBox(height: 8),
                         TextField(
                           controller: alpnController,
-                          decoration: const InputDecoration(labelText: 'ALPN (virgülle ayır)', prefixIcon: Icon(Icons.layers)),
+                          decoration: inputDecoration.copyWith(
+                            labelText: 'ALPN (virgülle ayır)',
+                            prefixIcon: const Icon(Icons.layers),
+                          ),
                         ),
                       ],
                     ]),
 
-                    const SizedBox(height: 16),
                     _buildSettingsSection('Transport', [
                       DropdownButtonFormField<String>(
                         initialValue: selectedTransport,
-                        decoration: const InputDecoration(labelText: 'Transport', prefixIcon: Icon(Icons.swap_calls)),
+                        decoration: inputDecoration.copyWith(
+                          labelText: 'Transport',
+                          prefixIcon: const Icon(Icons.swap_calls),
+                        ),
                         items: ['tcp', 'ws', 'grpc', 'http'].map((t) => DropdownMenuItem(value: t, child: Text(t.toUpperCase()))).toList(),
                         onChanged: (v) => setDialogState(() => selectedTransport = v!),
                       ),
                       if (selectedTransport != 'tcp') ...[
-                        const SizedBox(height: 8),
                         TextField(
                           controller: pathController,
-                          decoration: const InputDecoration(labelText: 'Path / Service Name', prefixIcon: Icon(Icons.folder)),
+                          decoration: inputDecoration.copyWith(
+                            labelText: 'Path / Service Name',
+                            prefixIcon: const Icon(Icons.folder),
+                          ),
                         ),
-                        const SizedBox(height: 8),
                         TextField(
                           controller: hostController,
-                          decoration: const InputDecoration(labelText: 'Host', prefixIcon: Icon(Icons.computer)),
+                          decoration: inputDecoration.copyWith(
+                            labelText: 'Host',
+                            prefixIcon: const Icon(Icons.computer),
+                          ),
                         ),
                       ]
                     ]),
@@ -1910,19 +1956,13 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   Widget _buildSettingsSection(String title, List<Widget> children) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 16), // Bölümler arası boşluk
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
-      ),
-      color: colorScheme.surfaceContainerLow,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.fromLTRB(0, 0, 0, 16),
             child: Text(
               title.toUpperCase(),
               style: TextStyle(
@@ -1933,8 +1973,10 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               ),
             ),
           ),
-          ...children,
-          const SizedBox(height: 8),
+          ...children.map((child) => Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: child,
+          )).toList(),
         ],
       ),
     );
