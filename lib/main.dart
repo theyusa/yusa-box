@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dynamic_color/dynamic_color.dart';
@@ -258,7 +259,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   void initState() {
     super.initState();
     _loadPreferences();
-    _loadDummyData();
+    _loadSubscriptions();
     _listenToVpnStatus();
   }
 
@@ -279,20 +280,59 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     });
   }
 
-  void _loadDummyData() {
-    // Initial Dummy Subscription
-    final initialSub = VPNSubscription(
-      id: 'sub1',
-      name: 'Varsayılan Abonelik',
-      url: 'https://example.com/sub/vless',
+  Future<void> _loadSubscriptions() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? subsJson = prefs.getString('subscriptions');
+    
+    if (subsJson != null && subsJson.isNotEmpty) {
+      try {
+        final List<dynamic> subsList = jsonDecode(subsJson);
+        setState(() {
+          _subscriptions = subsList.map((s) => VPNSubscription.fromJson(s)).toList();
+        });
+        _addLog('${_subscriptions.length} abonelik yüklendi');
+      } catch (e) {
+        _addLog('Abonelikleri yükleme hatası: ${e.toString()}');
+      }
+    } else {
+      // No subscriptions yet, user needs to add one
+      _addLog('Abonelik ekleyin');
+    }
+  }
+
+  Future<void> _saveSubscriptions() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String subsJson = jsonEncode(_subscriptions.map((s) => s.toJson()).toList());
+    await prefs.setString('subscriptions', subsJson);
+  }
+
+  Future<void> _addSubscription(String name, String url) async {
+    final subscription = VPNSubscription(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: name,
+      url: url,
     );
-    initialSub.refreshServers(); // Load initial dummy servers
+    
+    // Fetch servers immediately
+    await _refreshSubscription(subscription);
+    
     setState(() {
-      _subscriptions = [initialSub];
-      if (initialSub.servers.isNotEmpty) {
-        _selectedServer = initialSub.servers.first;
+      _subscriptions.add(subscription);
+    });
+    
+    await _saveSubscriptions();
+    _addLog('Abonelik eklendi: $name');
+  }
+
+  Future<void> _deleteSubscription(VPNSubscription sub) async {
+    setState(() {
+      _subscriptions.removeWhere((s) => s.id == sub.id);
+      if (_selectedServer != null && sub.servers.any((s) => s.id == _selectedServer!.id)) {
+        _selectedServer = null;
       }
     });
+    await _saveSubscriptions();
+    _addLog('Abonelik silindi: ${sub.name}');
   }
 
   Future<void> _refreshSubscription(VPNSubscription sub) async {
@@ -754,15 +794,15 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   IconButton(
                     tooltip: 'Tümünü Güncelle',
                     icon: const Icon(Icons.refresh),
-                    onPressed: () {
-                      setState(() {
-                        for (var sub in _subscriptions) {
-                          sub.refreshServers();
-                        }
-                      });
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Tüm abonelikler güncellendi')),
-                      );
+                    onPressed: () async {
+                      for (var sub in _subscriptions) {
+                        await _refreshSubscription(sub);
+                      }
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Tüm abonelikler güncellendi')),
+                        );
+                      }
                     },
                   ),
                 ],
@@ -852,10 +892,22 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        subtitle: Text(
-                          '${server.city} • ${server.ping}',
-                          style: TextStyle(color: colorScheme.onSurfaceVariant),
-                        ),
+                         subtitle: Column(
+                           crossAxisAlignment: CrossAxisAlignment.start,
+                           children: [
+                             Text(
+                               '${server.city} • ${server.ping}',
+                               style: TextStyle(color: colorScheme.onSurfaceVariant),
+                             ),
+                             Text(
+                               '${server.protocol} • ${server.transport.toUpperCase()}${server.security == 'tls' ? ' • TLS' : ''}',
+                               style: TextStyle(
+                                 color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                                 fontSize: 11,
+                               ),
+                             ),
+                           ],
+                         ),
                         tileColor: isSelected 
                             ? colorScheme.primaryContainer.withValues(alpha: 0.3) 
                             : colorScheme.surfaceContainer,
@@ -1087,8 +1139,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                       name: name,
                       url: url,
                     );
-                    newSub.refreshServers(); // Load initial dummy servers
-                    _subscriptions.add(newSub);
+                     _subscriptions.add(newSub);
+                     _refreshSubscription(newSub);
                   }
                 });
                 Navigator.pop(context);
@@ -1553,6 +1605,36 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       protocol = 'shadowsocks';
     }
 
+    // Build TLS config
+    String tlsConfig = '';
+    if (server.security == 'tls') {
+      tlsConfig = '''
+      "tls": {
+        "enabled": true,
+        "server_name": "${server.sni ?? server.address}",
+        "insecure": ${server.allowInsecure},
+        ${server.fingerprint != null ? '"utls": {"enabled": true, "fingerprint": "${server.fingerprint}"},' : ''}
+        ${server.alpn != null ? '"alpn": ["${server.alpn}"],' : ''}
+      },''';
+    }
+
+    // Build transport config
+    String transportConfig = '';
+    if (server.transport == 'ws') {
+      transportConfig = '''
+      "transport": {
+        "type": "ws",
+        "path": "${server.path ?? '/'}",
+        ${server.host != null ? '"headers": {"Host": "${server.host}"},' : ''}
+      },''';
+    } else if (server.transport == 'grpc') {
+      transportConfig = '''
+      "transport": {
+        "type": "grpc",
+        "service_name": "${server.path ?? 'grpc'}",
+      },''';
+    }
+
     return '''
 {
   "log": {
@@ -1589,12 +1671,9 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       "tag": "proxy",
       "server": "${server.address}",
       "server_port": ${server.port},
-      "uuid": "00000000-0000-0000-0000-000000000000",
-      "tls": {
-        "enabled": true,
-        "server_name": "${server.address}",
-        "insecure": false
-      }
+      "uuid": "${server.uuid}",
+      $tlsConfig
+      $transportConfig
     },
     {
       "type": "direct",

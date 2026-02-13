@@ -20,16 +20,26 @@ class SubscriptionService {
         } else if (body.trim().startsWith('{') || body.trim().startsWith('[')) {
           return _parseJsonConfig(body);
         } else {
-          final decoded = base64Decode(base64.normalize(body.trim()));
-          final String content = utf8.decode(decoded);
-          
-          if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
-            return _parseJsonConfig(content);
-          } else if (content.contains('\n')) {
-            return _parseMultiLineConfig(content);
-          } else {
-            final server = _parseSingleServer(content);
-            return [server];
+          try {
+            final decoded = base64Decode(base64.normalize(body.trim()));
+            final String content = utf8.decode(decoded);
+            
+            if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
+              return _parseJsonConfig(content);
+            } else if (content.contains('\n')) {
+              return _parseMultiLineConfig(content);
+            } else {
+              final server = _parseSingleServer(content);
+              return [server];
+            }
+          } catch (e) {
+            // If base64 decode fails, treat as plain text
+            if (body.contains('\n')) {
+              return _parseMultiLineConfig(body);
+            } else {
+              final server = _parseSingleServer(body.trim());
+              return [server];
+            }
           }
         }
       } else {
@@ -47,7 +57,7 @@ class SubscriptionService {
 
       if (json is List) {
         for (var item in json) {
-          final server = _parseJsonServer(item);
+          final server = _parseJsonServer(item as Map<String, dynamic>);
           servers.add(server);
         }
       } else if (json is Map) {
@@ -79,6 +89,14 @@ class SubscriptionService {
       city: city,
       ping: '--',
       protocol: protocol,
+      uuid: json['uuid'] ?? '',
+      security: json['tls'] != null ? 'tls' : 'none',
+      transport: json['transport'] ?? json['network'] ?? 'tcp',
+      path: json['path'] ?? json['ws-opts']?['path'],
+      host: json['host'] ?? json['ws-opts']?['headers']?['Host'],
+      sni: json['sni'] ?? json['servername'],
+      alpn: json['alpn'] is List ? json['alpn'].join(',') : json['alpn'],
+      allowInsecure: json['skip-cert-verify'] ?? false,
     );
   }
 
@@ -127,131 +145,209 @@ class SubscriptionService {
       final String decoded = utf8.decode(base64Decode(base64.normalize(encoded)));
       final Map<String, dynamic> json = jsonDecode(decoded);
 
-      final String server = json['add'] ?? json['address'] ?? '';
-      final int port = json['port'] ?? 443;
-      final String flag = _getCountryFlag(server);
-      final String city = _getCity(server);
+      final String address = json['add'] ?? json['address'] ?? '';
+      final int port = json['port'] is String ? int.tryParse(json['port']) ?? 443 : json['port'] ?? 443;
+      final String flag = _getCountryFlag(address);
+      final String city = _getCity(address);
+      final String ps = json['ps'] ?? '';
 
       return VPNServer(
-        id: server,
-        name: '$flag $city',
-        address: server,
+        id: address,
+        name: ps.isNotEmpty ? ps : '$flag $city',
+        address: address,
         port: port,
         flag: flag,
         city: city,
         ping: '--',
         protocol: 'VMESS',
+        uuid: json['id'] ?? '',
+        security: json['tls'] == 'tls' ? 'tls' : 'none',
+        transport: json['net'] ?? 'tcp',
+        path: json['path'],
+        host: json['host'],
+        sni: json['sni'] ?? json['host'],
+        alpn: json['alpn'],
+        allowInsecure: json['verify_cert'] == false || json['allowInsecure'] == 1,
       );
     } catch (e) {
       return VPNServer(
         id: 'unknown',
-        name: 'Unknown',
+        name: 'VMess Parse Error',
         address: '0.0.0.0',
         port: 443,
         flag: 'URL',
-        city: 'Unknown',
+        city: 'Error',
         ping: '--',
-        protocol: 'UNKNOWN',
+        protocol: 'VMESS',
       );
     }
   }
 
   VPNServer _parseVless(String vlessUrl) {
     try {
+      // vless://uuid@host:port?params#remark
       final String uri = vlessUrl.replaceFirst('vless://', '');
-      final String protocol = 'VLESS';
       
-      final String serverPart = uri.split('@')[1].split('?')[0];
-      final List<String> serverInfo = serverPart.split(':');
-      
-      if (serverInfo.length < 2) {
-        return VPNServer(
-          id: 'unknown',
-          name: 'Unknown',
-          address: '0.0.0.0',
-          port: 443,
-          flag: 'URL',
-          city: 'Unknown',
-          ping: '--',
-          protocol: 'UNKNOWN',
-        );
+      // Split remark (fragment)
+      final List<String> parts = uri.split('#');
+      final String mainPart = parts[0];
+      String remark = '';
+      if (parts.length > 1) {
+        remark = Uri.decodeComponent(parts[1]);
       }
       
-      final String server = serverInfo[0];
-      final int port = int.tryParse(serverInfo[1]) ?? 443;
-      final String flag = _getCountryFlag(server);
-      final String city = _getCity(server);
+      // Split UUID and the rest
+      final List<String> atParts = mainPart.split('@');
+      if (atParts.length < 2) {
+        throw Exception('Invalid VLESS URL format');
+      }
+      
+      final String uuid = atParts[0];
+      final String rest = atParts[1];
+      
+      // Split address:port and query params
+      final List<String> queryParts = rest.split('?');
+      final String addressPort = queryParts[0];
+      
+      // Parse address and port
+      final List<String> addrParts = addressPort.split(':');
+      if (addrParts.length < 2) {
+        throw Exception('Invalid address:port format');
+      }
+      
+      final String address = addrParts[0];
+      final int port = int.tryParse(addrParts[1]) ?? 443;
+      
+      // Parse query params
+      String security = 'tls';
+      String transport = 'tcp';
+      String? path;
+      String? host;
+      String? sni;
+      String? alpn;
+      bool allowInsecure = false;
+      String? fingerprint;
+      
+      if (queryParts.length > 1) {
+        final params = Uri.splitQueryString(queryParts[1]);
+        security = params['security'] ?? 'tls';
+        transport = params['type'] ?? 'tcp';
+        path = params['path']?.isNotEmpty == true ? Uri.decodeComponent(params['path']!) : null;
+        host = params['host']?.isNotEmpty == true ? params['host'] : null;
+        sni = params['sni']?.isNotEmpty == true ? params['sni'] : null;
+        alpn = params['alpn']?.isNotEmpty == true ? Uri.decodeComponent(params['alpn']!) : null;
+        allowInsecure = params['allowInsecure'] == '1';
+        fingerprint = params['fp']?.isNotEmpty == true ? params['fp'] : null;
+      }
+      
+      final String flag = _getCountryFlag(address);
+      final String city = _getCity(address);
 
       return VPNServer(
-        id: server,
-        name: '$flag $city',
-        address: server,
+        id: '$address:$port',
+        name: remark.isNotEmpty ? remark : '$flag $city',
+        address: address,
         port: port,
         flag: flag,
         city: city,
         ping: '--',
-        protocol: protocol,
+        protocol: 'VLESS',
+        uuid: uuid,
+        security: security,
+        transport: transport,
+        path: path,
+        host: host,
+        sni: sni,
+        alpn: alpn,
+        allowInsecure: allowInsecure,
+        fingerprint: fingerprint,
       );
     } catch (e) {
+      print('VLESS parse error: $e');
       return VPNServer(
         id: 'unknown',
-        name: 'Unknown',
+        name: 'VLESS Parse Error',
         address: '0.0.0.0',
         port: 443,
         flag: 'URL',
-        city: 'Unknown',
+        city: 'Error',
         ping: '--',
-        protocol: 'UNKNOWN',
+        protocol: 'VLESS',
       );
     }
   }
 
   VPNServer _parseTrojan(String trojanUrl) {
     try {
+      // trojan://password@host:port?params#remark
       final String uri = trojanUrl.replaceFirst('trojan://', '');
-      final String protocol = 'TROJAN';
       
-      final String serverPart = uri.split('@')[1].split('?')[0];
-      final List<String> serverInfo = serverPart.split(':');
-      
-      if (serverInfo.length < 2) {
-        return VPNServer(
-          id: 'unknown',
-          name: 'Unknown',
-          address: '0.0.0.0',
-          port: 443,
-          flag: 'URL',
-          city: 'Unknown',
-          ping: '--',
-          protocol: 'UNKNOWN',
-        );
+      final List<String> parts = uri.split('#');
+      final String mainPart = parts[0];
+      String remark = '';
+      if (parts.length > 1) {
+        remark = Uri.decodeComponent(parts[1]);
       }
       
-      final String server = serverInfo[0];
-      final int port = int.tryParse(serverInfo[1]) ?? 443;
-      final String flag = _getCountryFlag(server);
-      final String city = _getCity(server);
+      final List<String> atParts = mainPart.split('@');
+      if (atParts.length < 2) {
+        throw Exception('Invalid Trojan URL format');
+      }
+      
+      final String password = atParts[0];
+      final String rest = atParts[1];
+      
+      final List<String> queryParts = rest.split('?');
+      final String addressPort = queryParts[0];
+      
+      final List<String> addrParts = addressPort.split(':');
+      if (addrParts.length < 2) {
+        throw Exception('Invalid address:port format');
+      }
+      
+      final String address = addrParts[0];
+      final int port = int.tryParse(addrParts[1]) ?? 443;
+      
+      String? sni;
+      String? alpn;
+      bool allowInsecure = false;
+      
+      if (queryParts.length > 1) {
+        final params = Uri.splitQueryString(queryParts[1]);
+        sni = params['sni']?.isNotEmpty == true ? params['sni'] : null;
+        alpn = params['alpn']?.isNotEmpty == true ? Uri.decodeComponent(params['alpn']!) : null;
+        allowInsecure = params['allowInsecure'] == '1';
+      }
+      
+      final String flag = _getCountryFlag(address);
+      final String city = _getCity(address);
 
       return VPNServer(
-        id: server,
-        name: '$flag $city',
-        address: server,
+        id: '$address:$port',
+        name: remark.isNotEmpty ? remark : '$flag $city',
+        address: address,
         port: port,
         flag: flag,
         city: city,
         ping: '--',
-        protocol: protocol,
+        protocol: 'TROJAN',
+        uuid: password,
+        security: 'tls',
+        transport: 'tcp',
+        sni: sni,
+        alpn: alpn,
+        allowInsecure: allowInsecure,
       );
     } catch (e) {
       return VPNServer(
         id: 'unknown',
-        name: 'Unknown',
+        name: 'Trojan Parse Error',
         address: '0.0.0.0',
         port: 443,
         flag: 'URL',
-        city: 'Unknown',
+        city: 'Error',
         ping: '--',
-        protocol: 'UNKNOWN',
+        protocol: 'TROJAN',
       );
     }
   }
@@ -259,65 +355,77 @@ class SubscriptionService {
   VPNServer _parseShadowsocks(String ssUrl) {
     try {
       final String uri = ssUrl.replaceFirst('ss://', '');
-      final String protocol = 'SS';
       
-      final String decoded = utf8.decode(base64Decode(base64.normalize(uri)));
-      final List<String> parts = decoded.split('@');
-      
-      if (parts.length < 2) {
+      String decoded;
+      try {
+        decoded = utf8.decode(base64Decode(base64.normalize(uri.split('@')[0])));
+      } catch (e) {
+        // Try full URL decode
+        final List<String> parts = uri.split('#');
+        final String mainPart = parts[0];
+        String remark = '';
+        if (parts.length > 1) {
+          remark = Uri.decodeComponent(parts[1]);
+        }
+        
+        final List<String> atParts = mainPart.split('@');
+        if (atParts.length < 2) {
+          throw Exception('Invalid SS URL format');
+        }
+        
+        final String serverPart = atParts[1].split('/')[0];
+        final List<String> serverInfo = serverPart.split(':');
+        
+        if (serverInfo.length < 2) {
+          throw Exception('Invalid address:port format');
+        }
+        
+        final String address = serverInfo[0];
+        final int port = int.tryParse(serverInfo[1]) ?? 8388;
+        final String flag = _getCountryFlag(address);
+        final String city = _getCity(address);
+
         return VPNServer(
-          id: 'unknown',
-          name: 'Unknown',
-          address: '0.0.0.0',
-          port: 443,
-          flag: 'URL',
-          city: 'Unknown',
+          id: '$address:$port',
+          name: remark.isNotEmpty ? remark : '$flag $city',
+          address: address,
+          port: port,
+          flag: flag,
+          city: city,
           ping: '--',
-          protocol: 'UNKNOWN',
+          protocol: 'SS',
         );
       }
       
+      final List<String> parts = decoded.split('@');
       final String serverPart = parts[1].split('/')[0];
       final List<String> serverInfo = serverPart.split(':');
       
-      if (serverInfo.length < 2) {
-        return VPNServer(
-          id: 'unknown',
-          name: 'Unknown',
-          address: '0.0.0.0',
-          port: 443,
-          flag: 'URL',
-          city: 'Unknown',
-          ping: '--',
-          protocol: 'UNKNOWN',
-        );
-      }
-      
-      final String server = serverInfo[0];
+      final String address = serverInfo[0];
       final int port = int.tryParse(serverInfo[1]) ?? 8388;
-      final String flag = _getCountryFlag(server);
-      final String city = _getCity(server);
+      final String flag = _getCountryFlag(address);
+      final String city = _getCity(address);
 
       return VPNServer(
-        id: server,
+        id: '$address:$port',
         name: '$flag $city',
-        address: server,
+        address: address,
         port: port,
         flag: flag,
         city: city,
         ping: '--',
-        protocol: protocol,
+        protocol: 'SS',
       );
     } catch (e) {
       return VPNServer(
         id: 'unknown',
-        name: 'Unknown',
+        name: 'SS Parse Error',
         address: '0.0.0.0',
         port: 443,
         flag: 'URL',
-        city: 'Unknown',
+        city: 'Error',
         ping: '--',
-        protocol: 'UNKNOWN',
+        protocol: 'SS',
       );
     }
   }
@@ -325,69 +433,94 @@ class SubscriptionService {
   VPNServer _parseShadowsocksR(String ssrUrl) {
     try {
       final String uri = ssrUrl.replaceFirst('ssr://', '');
-      final String protocol = 'SSR';
       
       final String decoded = utf8.decode(base64Decode(base64.normalize(uri)));
-      final Map<String, String> params = Uri.splitQueryString(decoded);
-      final String server = params['server'] ?? 'unknown';
-      final String portStr = params['server_port'] ?? '8388';
-      final int port = int.tryParse(portStr) ?? 8388;
-      final String flag = _getCountryFlag(server);
-      final String city = _getCity(server);
+      
+      final List<String> parts = decoded.split('/?');
+      final String mainPart = parts[0];
+      final String paramPart = parts.length > 1 ? parts[1] : '';
+      
+      final List<String> mainParts = mainPart.split(':');
+      if (mainParts.length < 6) {
+        throw Exception('Invalid SSR URL format');
+      }
+      
+      final String address = mainParts[0];
+      final int port = int.tryParse(mainParts[1]) ?? 8388;
+      // SSR specific fields: protocol, method, obfs - stored for future use
+      final String password = utf8.decode(base64Decode(base64.normalize(mainParts[5])));
+      
+      String? remark;
+      if (paramPart.isNotEmpty) {
+        final params = Uri.splitQueryString(paramPart);
+        if (params['remarks'] != null) {
+          remark = utf8.decode(base64Decode(base64.normalize(params['remarks']!)));
+        }
+      }
+      
+      final String flag = _getCountryFlag(address);
+      final String city = _getCity(address);
 
       return VPNServer(
-        id: server,
-        name: '$flag $city',
-        address: server,
+        id: '$address:$port',
+        name: remark ?? '$flag $city',
+        address: address,
         port: port,
         flag: flag,
         city: city,
         ping: '--',
-        protocol: protocol,
+        protocol: 'SSR',
+        uuid: password,
       );
     } catch (e) {
       return VPNServer(
         id: 'unknown',
-        name: 'Unknown',
+        name: 'SSR Parse Error',
         address: '0.0.0.0',
         port: 443,
         flag: 'URL',
-        city: 'Unknown',
+        city: 'Error',
         ping: '--',
-        protocol: 'UNKNOWN',
+        protocol: 'SSR',
       );
     }
   }
 
   String _getCountryFlag(String server) {
     if (server.endsWith('.tr') || server.contains('.tr')) {
-      return 'TR';
+      return '🇹🇷';
+    } else if (server.contains('89.35.73')) {
+      return '🇹🇷'; // Turkey - TheYusa servers
+    } else if (server.contains('194.62.54')) {
+      return '🇳🇱'; // Netherlands - Rebecca servers
     } else if (server.endsWith('.de') || server.contains('.de')) {
-      return 'DE';
+      return '🇩🇪';
     } else if (server.endsWith('.nl') || server.contains('.nl')) {
-      return 'NL';
+      return '🇳🇱';
     } else if (server.endsWith('.us') || server.contains('.us')) {
-      return 'US';
+      return '🇺🇸';
     } else if (server.endsWith('.fr') || server.contains('.fr')) {
-      return 'FR';
+      return '🇫🇷';
     } else if (server.endsWith('.uk') || server.contains('.uk')) {
-      return 'UK';
+      return '🇬🇧';
     } else if (server.endsWith('.ru') || server.contains('.ru')) {
-      return 'RU';
+      return '🇷🇺';
     } else if (server.endsWith('.jp') || server.contains('.jp')) {
-      return 'JP';
+      return '🇯🇵';
     } else if (server.endsWith('.sg') || server.contains('.sg')) {
-      return 'SG';
+      return '🇸🇬';
     } else if (server.endsWith('.hk') || server.contains('.hk')) {
-      return 'HK';
+      return '🇭🇰';
     } else {
       return '🌐';
     }
   }
 
   String _getCity(String server) {
-    if (server.contains('theyusa')) {
+    if (server.contains('theyusa') || server.contains('89.35.73')) {
       return 'Turkey';
+    } else if (server.contains('rebecca') || server.contains('194.62.54')) {
+      return 'Netherlands';
     } else if (server.contains('germany') || server.contains('.de')) {
       return 'Germany';
     } else if (server.contains('netherlands') || server.contains('.nl')) {
@@ -398,6 +531,8 @@ class SubscriptionService {
       return 'Singapore';
     } else if (server.contains('japan') || server.contains('.jp')) {
       return 'Japan';
+    } else if (server.contains('uk') || server.contains('.uk')) {
+      return 'United Kingdom';
     } else {
       return 'Unknown';
     }
