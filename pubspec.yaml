@@ -38,6 +38,5 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "yusa-box.png"
-  adaptive_icon_background: "#ffffff"
-  adaptive_icon_foreground: "yusa-box.png"
+  image_path: "Yusa-Box.png"
+  adaptive_icon_foreground: "Yusa-Box.png"
