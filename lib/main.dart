@@ -294,7 +294,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     // No-op: Data is saved directly to Hive via ServerService
   }
 
-  // ignore: unused_element
   Future<void> _addSubscription(String name, String url) async {
     _addLog('Abonelik ekleniyor: $name');
     try {
@@ -315,7 +314,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     }
   }
 
-  // ignore: unused_element
   Future<void> _deleteSubscription(VPNSubscription sub) async {
     // With flat list, we can clear all or delete specific servers.
     // For now, let's clear all servers if the dummy subscription is deleted
