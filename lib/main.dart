@@ -8,6 +8,7 @@ import 'strings.dart';
 import 'providers/theme_provider.dart';
 import 'models/vpn_models.dart';
 import 'services/vpn_service.dart';
+import 'services/subscription_service.dart';
 import 'services/server_service.dart';
 
 enum SortOption { name, ping }
@@ -232,6 +233,7 @@ class VPNHomePage extends ConsumerStatefulWidget {
 
 class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   final _vpnService = VpnService();
+  final _subscriptionService = SubscriptionService();
 
   bool _isConnected = false;
   int _currentIndex = 0;
@@ -262,7 +264,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   void initState() {
     super.initState();
     _loadPreferences();
-    // _loadSubscriptions(); // Handled by ValueListenableBuilder now
+    _loadSubscriptions();
     _listenToVpnStatus();
   }
 
@@ -283,32 +285,48 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     });
   }
 
-  // ignore: unused_element
   Future<void> _loadSubscriptions() async {
-    // Deprecated: Handled by ValueListenableBuilder
+    _subscriptions = ServerService.getAllSubscriptions();
+    setState(() {});
   }
 
   Future<void> _saveSubscriptions() async {
-    // No-op: Data is saved directly to Hive via ServerService
   }
 
   Future<void> _deleteSubscription(VPNSubscription sub) async {
-    // With flat list, we can clear all or delete specific servers.
-    // For now, let's clear all servers if the dummy subscription is deleted
-    // Or just show a message that "Deleting all servers"
-    await ServerService.clearServers();
-    _addLog('Tüm serverlar silindi.');
+    final index = _subscriptions.indexWhere((s) => s.id == sub.id);
+    if (index != -1) {
+      await ServerService.deleteSubscription(index);
+      await _loadSubscriptions();
+      _addLog('Abonelik silindi: ${sub.name}');
+    }
   }
 
   Future<void> _refreshSubscription(VPNSubscription sub) async {
-    // For refresh, we'd need the original URL. 
-    // Since we only store servers now (flat list), we lost the URL unless we saved it in SubscriptionBox.
-    // But keeping it simple as requested: just re-fetch if we had the URL.
-    // Since we don't persist URL in VpnServer, we can't easily refresh.
-    // We'll skip refresh logic or ask user to re-add.
-    ScaffoldMessenger.of(context).showSnackBar(
-       const SnackBar(content: Text('Yenileme için lütfen aboneliği tekrar ekleyin.')),
-    );
+    _addLog('Abonelik yenileniyor: ${sub.name}');
+    try {
+      final servers = await _subscriptionService.fetchServersFromSubscription(sub.url);
+      
+      final index = _subscriptions.indexWhere((s) => s.id == sub.id);
+      if (index != -1) {
+        final updatedSub = VPNSubscription(
+          id: sub.id,
+          name: sub.name,
+          url: sub.url,
+          servers: servers,
+        );
+        await ServerService.updateSubscription(index, updatedSub);
+        await _loadSubscriptions();
+        _addLog('${sub.name}: ${servers.length} server güncellendi');
+      }
+    } catch (e) {
+      _addLog('Hata: ${e.toString()}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Hata: ${e.toString()}')),
+        );
+      }
+    }
   }
 
   Future<void> _loadPreferences() async {
@@ -948,41 +966,48 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   Widget _buildSubscriptionView() {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return ValueListenableBuilder<Box<VPNSubscription>>(
+      valueListenable: ServerService.subscriptionsListenable,
+      builder: (context, box, _) {
+        _subscriptions = box.values.toList();
+        
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
             children: [
-              Text(
-                AppStrings.get('v2ray_subs'),
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              IconButton(
-                onPressed: () => _showSubscriptionDialog(null),
-                icon: const Icon(Icons.add),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          if (_subscriptions.isEmpty)
-             Center(
-              child: Column(
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(Icons.inbox_outlined, size: 64, color: colorScheme.outline),
-                  const SizedBox(height: 16),
                   Text(
-                    AppStrings.get('no_subscriptions'),
-                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                    AppStrings.get('v2ray_subs'),
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    onPressed: () => _showSubscriptionDialog(null),
+                    icon: const Icon(Icons.add),
                   ),
                 ],
               ),
-            )
-          else
-            ..._subscriptions.map((sub) => _buildSubscriptionCard(sub)),
-        ],
-      ),
+              const SizedBox(height: 20),
+              if (_subscriptions.isEmpty)
+                 Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.inbox_outlined, size: 64, color: colorScheme.outline),
+                      const SizedBox(height: 16),
+                      Text(
+                        AppStrings.get('no_subscriptions'),
+                        style: TextStyle(color: colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ..._subscriptions.map((sub) => _buildSubscriptionCard(sub)),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1112,25 +1137,29 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               final url = urlController.text.trim();
               if (name.isNotEmpty && url.isNotEmpty) {
                 if (isEditing) {
-                  setState(() {
-                    sub.name = name;
-                    sub.url = url;
-                  });
-                  await _saveSubscriptions();
+                  final index = _subscriptions.indexWhere((s) => s.id == sub.id);
+                  if (index != -1) {
+                    final updatedSub = VPNSubscription(
+                      id: sub.id,
+                      name: name,
+                      url: url,
+                      servers: sub.servers,
+                    );
+                    await ServerService.updateSubscription(index, updatedSub);
+                    await _loadSubscriptions();
+                  }
                 } else {
                   final newSub = VPNSubscription(
                     id: DateTime.now().millisecondsSinceEpoch.toString(),
                     name: name,
                     url: url,
+                    servers: [],
                   );
-                  setState(() {
-                    _subscriptions.add(newSub);
-                  });
+                  await ServerService.addSubscription(newSub);
                   await _refreshSubscription(newSub);
                 }
               }
               if (mounted) {
-                // ignore: use_build_context_synchronously
                 Navigator.pop(context);
               }
             },
