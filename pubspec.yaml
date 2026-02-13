@@ -30,6 +30,14 @@ dev_dependencies:
   riverpod_generator: ^2.4.0
   riverpod_lint: ^2.3.10
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.1
 
 flutter:
   uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "yusa-box.png"
+  adaptive_icon_background: "#ffffff"
+  adaptive_icon_foreground: "yusa-box.png"
