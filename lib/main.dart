@@ -8,11 +8,14 @@ import 'providers/theme_provider.dart';
 import 'models/vpn_models.dart';
 import 'services/vpn_service.dart';
 import 'services/subscription_service.dart';
+import 'services/database_service.dart';
 
 enum SortOption { name, ping }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await DatabaseService.initialize();
 
   final prefs = await SharedPreferences.getInstance();
   final language = prefs.getString('language') ?? AppStrings.tr;
@@ -281,29 +284,20 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   Future<void> _loadSubscriptions() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? subsJson = prefs.getString('subscriptions');
-    
-    if (subsJson != null && subsJson.isNotEmpty) {
-      try {
-        final List<dynamic> subsList = jsonDecode(subsJson);
-        setState(() {
-          _subscriptions = subsList.map((s) => VPNSubscription.fromJson(s)).toList();
-        });
+    try {
+      _subscriptions = DatabaseService.loadSubscriptions();
+      if (_subscriptions.isNotEmpty) {
         _addLog('${_subscriptions.length} abonelik yüklendi');
-      } catch (e) {
-        _addLog('Abonelikleri yükleme hatası: ${e.toString()}');
+      } else {
+        _addLog('Abonelik ekleyin');
       }
-    } else {
-      // No subscriptions yet, user needs to add one
-      _addLog('Abonelik ekleyin');
+    } catch (e) {
+      _addLog('Abonelikleri yükleme hatası: ${e.toString()}');
     }
   }
 
   Future<void> _saveSubscriptions() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String subsJson = jsonEncode(_subscriptions.map((s) => s.toJson()).toList());
-    await prefs.setString('subscriptions', subsJson);
+    await DatabaseService.saveSubscriptions(_subscriptions);
   }
 
   // ignore: unused_element
@@ -898,13 +892,23 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                            crossAxisAlignment: CrossAxisAlignment.start,
                            children: [
                              Text(
+                               '${server.address}:${server.port}',
+                               style: TextStyle(
+                                 color: colorScheme.onSurfaceVariant,
+                                 fontWeight: FontWeight.w500,
+                               ),
+                             ),
+                             Text(
                                '${server.city} • ${server.ping}',
-                               style: TextStyle(color: colorScheme.onSurfaceVariant),
+                               style: TextStyle(
+                                 color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+                                 fontSize: 12,
+                               ),
                              ),
                              Text(
                                '${server.protocol} • ${server.transport.toUpperCase()}${server.security == 'tls' ? ' • TLS' : ''}',
                                style: TextStyle(
-                                 color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                                 color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
                                  fontSize: 11,
                                ),
                              ),
@@ -1187,43 +1191,272 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   void _showServerEditDialog(VPNSubscription sub, VPNServer server) {
+    // Controllers for all fields
     final nameController = TextEditingController(text: server.name);
     final addressController = TextEditingController(text: server.address);
+    final portController = TextEditingController(text: server.port.toString());
+    final uuidController = TextEditingController(text: server.uuid);
+    final pathController = TextEditingController(text: server.path ?? '');
+    final hostController = TextEditingController(text: server.host ?? '');
+    final sniController = TextEditingController(text: server.sni ?? '');
+    final alpnController = TextEditingController(text: server.alpn ?? '');
+    final fingerprintController = TextEditingController(text: server.fingerprint ?? '');
+
+    // State variables for dropdowns
+    String selectedProtocol = server.protocol;
+    String selectedSecurity = server.security;
+    String selectedTransport = server.transport;
+    bool allowInsecure = server.allowInsecure;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Server Düzenle'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Server Adı', prefixIcon: Icon(Icons.dns)),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Server Düzenle'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Basic Info Section
+                  Text(
+                    'Temel Bilgiler',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Server Adı',
+                      prefixIcon: Icon(Icons.dns),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          controller: addressController,
+                          decoration: const InputDecoration(
+                            labelText: 'Adres',
+                            prefixIcon: Icon(Icons.language),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 1,
+                        child: TextField(
+                          controller: portController,
+                          decoration: const InputDecoration(
+                            labelText: 'Port',
+                            prefixIcon: Icon(Icons.settings_ethernet),
+                          ),
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Protocol Section
+                  Text(
+                    'Protokol Ayarları',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: selectedProtocol,
+                    decoration: const InputDecoration(
+                      labelText: 'Protokol',
+                      prefixIcon: Icon(Icons.swap_horiz),
+                    ),
+                    items: ['VLESS', 'VMESS', 'TROJAN', 'SS', 'SSR']
+                        .map((protocol) => DropdownMenuItem(
+                              value: protocol,
+                              child: Text(protocol),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() {
+                          selectedProtocol = value;
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: uuidController,
+                    decoration: const InputDecoration(
+                      labelText: 'UUID / Password',
+                      prefixIcon: Icon(Icons.key),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Security Section
+                  Text(
+                    'Güvenlik Ayarları',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: selectedSecurity,
+                    decoration: const InputDecoration(
+                      labelText: 'Security',
+                      prefixIcon: Icon(Icons.security),
+                    ),
+                    items: ['tls', 'none', 'xtls', 'reality']
+                        .map((security) => DropdownMenuItem(
+                              value: security,
+                              child: Text(security.toUpperCase()),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() {
+                          selectedSecurity = value;
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    title: const Text('Allow Insecure'),
+                    subtitle: const Text('Sertifika doğrulamasını atla'),
+                    value: allowInsecure,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        allowInsecure = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: sniController,
+                    decoration: const InputDecoration(
+                      labelText: 'SNI',
+                      prefixIcon: Icon(Icons.verified_user),
+                      hintText: 'server.name.com',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: alpnController,
+                    decoration: const InputDecoration(
+                      labelText: 'ALPN',
+                      prefixIcon: Icon(Icons.layers),
+                      hintText: 'h2,http/1.1',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: fingerprintController,
+                    decoration: const InputDecoration(
+                      labelText: 'Fingerprint',
+                      prefixIcon: Icon(Icons.fingerprint),
+                      hintText: 'chrome, firefox, safari...',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Transport Section
+                  Text(
+                    'Transport Ayarları',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: selectedTransport,
+                    decoration: const InputDecoration(
+                      labelText: 'Transport',
+                      prefixIcon: Icon(Icons.route),
+                    ),
+                    items: ['tcp', 'ws', 'grpc', 'http', 'httpupgrade', 'xhttp']
+                        .map((transport) => DropdownMenuItem(
+                              value: transport,
+                              child: Text(transport.toUpperCase()),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() {
+                          selectedTransport = value;
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: hostController,
+                    decoration: const InputDecoration(
+                      labelText: 'Host',
+                      prefixIcon: Icon(Icons.computer),
+                      hintText: 'Host header',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: pathController,
+                    decoration: const InputDecoration(
+                      labelText: 'Path',
+                      prefixIcon: Icon(Icons.link),
+                      hintText: '/path',
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: addressController,
-              decoration: const InputDecoration(labelText: 'Adres', prefixIcon: Icon(Icons.language)),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(AppStrings.get('cancel')),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                server.name = nameController.text;
-                server.address = addressController.text;
-              });
-              Navigator.pop(context);
-            },
-            child: Text(AppStrings.get('save')),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(AppStrings.get('cancel')),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    server.name = nameController.text;
+                    server.address = addressController.text;
+                    server.port = int.tryParse(portController.text) ?? server.port;
+                    server.uuid = uuidController.text;
+                    server.protocol = selectedProtocol;
+                    server.security = selectedSecurity;
+                    server.transport = selectedTransport;
+                    server.allowInsecure = allowInsecure;
+                    server.sni = sniController.text.isNotEmpty ? sniController.text : null;
+                    server.alpn = alpnController.text.isNotEmpty ? alpnController.text : null;
+                    server.fingerprint = fingerprintController.text.isNotEmpty
+                        ? fingerprintController.text
+                        : null;
+                    server.host = hostController.text.isNotEmpty ? hostController.text : null;
+                    server.path = pathController.text.isNotEmpty ? pathController.text : null;
+                  });
+                  _saveSubscriptions();
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Server güncellendi')),
+                  );
+                },
+                child: Text(AppStrings.get('save')),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
