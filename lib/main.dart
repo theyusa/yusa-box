@@ -1239,7 +1239,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             ),
             actions: [
               TextButton(
-                onPressed: () {
+                onPressed: () async {
                   setState(() {
                     server.name = nameController.text;
                     server.address = addressController.text;
@@ -1257,11 +1257,13 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                     server.host = hostController.text.isNotEmpty ? hostController.text : null;
                     server.path = pathController.text.isNotEmpty ? pathController.text : null;
                   });
-                  _saveSubscriptions();
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Server güncellendi')),
-                  );
+                  await _saveSubscriptions();
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Server güncellendi')),
+                    );
+                  }
                 },
                 child: Text(AppStrings.get('save')),
               ),
@@ -1484,19 +1486,19 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   );
 }
 
-void _deleteServer(VPNSubscription sub, VPNServer server) {
-     setState(() {
-      sub.servers.remove(server);
-      if (_selectedServer?.id == server.id) {
-        _selectedServer = null;
-        _isConnected = false;
-      }
-    });
-    _saveSubscriptions();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Server silindi')),
-    );
-  }
+void _deleteServer(VPNSubscription sub, VPNServer server) async {
+   setState(() {
+    sub.servers.remove(server);
+    if (_selectedServer?.id == server.id) {
+      _selectedServer = null;
+      _isConnected = false;
+    }
+  });
+  await _saveSubscriptions();
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Server silindi')),
+  );
+}
 
   // --- Settings View ---
 

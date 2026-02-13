@@ -7,8 +7,8 @@ class DatabaseService {
   static const String _serversBoxName = 'servers';
   static const String _settingsBoxName = 'settings';
 
-  static late Box<Map> _subscriptionsBox;
-  static late Box<Map> _serversBox;
+  static late Box<dynamic> _subscriptionsBox;
+  static late Box<dynamic> _serversBox;
   static late Box<dynamic> _settingsBox;
   static bool _isInitialized = false;
 
@@ -20,8 +20,8 @@ class DatabaseService {
 
     debugPrint('[Database] Initializing Hive...');
     await Hive.initFlutter();
-    _subscriptionsBox = await Hive.openBox<Map>(_subscriptionsBoxName);
-    _serversBox = await Hive.openBox<Map>(_serversBoxName);
+    _subscriptionsBox = await Hive.openBox<dynamic>(_subscriptionsBoxName);
+    _serversBox = await Hive.openBox<dynamic>(_serversBoxName);
     _settingsBox = await Hive.openBox<dynamic>(_settingsBoxName);
     _isInitialized = true;
     debugPrint('[Database] Initialized successfully');
