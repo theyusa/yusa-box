@@ -290,9 +290,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     setState(() {});
   }
 
-  Future<void> _saveSubscriptions() async {
-  }
-
   Future<void> _deleteSubscription(VPNSubscription sub) async {
     final index = _subscriptions.indexWhere((s) => s.id == sub.id);
     if (index != -1) {
@@ -1137,6 +1134,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           ),
           ElevatedButton(
             onPressed: () async {
+              final navigator = Navigator.of(context);
               final name = nameController.text.trim();
               final url = urlController.text.trim();
               if (name.isNotEmpty && url.isNotEmpty) {
@@ -1164,7 +1162,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                 }
               }
               if (mounted) {
-                Navigator.pop(context);
+                navigator.pop();
               }
             },
             child: Text(AppStrings.get('save')),
