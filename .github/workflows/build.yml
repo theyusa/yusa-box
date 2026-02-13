@@ -38,9 +38,6 @@ jobs:
             echo "No tests found, skipping"
           fi
 
-      - name: Build Android APK (debug)
-        run: flutter build apk --debug
-
       - name: Build Android APK (release - no keystore)
         run: flutter build apk --release
 
