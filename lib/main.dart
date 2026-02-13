@@ -294,26 +294,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     // No-op: Data is saved directly to Hive via ServerService
   }
 
-  Future<void> _addSubscription(String name, String url) async {
-    _addLog('Abonelik ekleniyor: $name');
-    try {
-      final servers = await _subscriptionService.fetchServersFromSubscription(url);
-      
-      // Save directly to Hive (serversBox)
-      await ServerService.addServers(servers);
-      
-      _addLog('$name: ${servers.length} server bulundu ve KAYDEDİLDİ.');
-      // No setState needed, ValueListenableBuilder handles it
-    } catch (e) {
-      _addLog('Hata: ${e.toString()}');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Hata: ${e.toString()}')),
-        );
-      }
-    }
-  }
-
   Future<void> _deleteSubscription(VPNSubscription sub) async {
     // With flat list, we can clear all or delete specific servers.
     // For now, let's clear all servers if the dummy subscription is deleted
