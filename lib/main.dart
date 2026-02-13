@@ -8,7 +8,6 @@ import 'strings.dart';
 import 'providers/theme_provider.dart';
 import 'models/vpn_models.dart';
 import 'services/vpn_service.dart';
-import 'services/subscription_service.dart';
 import 'services/server_service.dart';
 
 enum SortOption { name, ping }
@@ -233,7 +232,6 @@ class VPNHomePage extends ConsumerStatefulWidget {
 
 class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   final _vpnService = VpnService();
-  final _subscriptionService = SubscriptionService();
 
   bool _isConnected = false;
   int _currentIndex = 0;
