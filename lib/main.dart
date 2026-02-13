@@ -351,7 +351,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       _addLog('Hata: ${e.toString()}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Hata: ${e.toString()}'),
+          SnackBar(content: Text('Hata: ${e.toString()}')),
         );
       }
     }
