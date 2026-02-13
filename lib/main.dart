@@ -1241,6 +1241,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               TextButton(
                 onPressed: () async {
                   final navigator = Navigator.of(context);
+                  final scaffoldMessenger = ScaffoldMessenger.of(context);
                   setState(() {
                     server.name = nameController.text;
                     server.address = addressController.text;
@@ -1260,11 +1261,9 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   });
                   await _saveSubscriptions();
                   navigator.pop();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Server güncellendi')),
-                    );
-                  }
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(content: Text('Server güncellendi')),
+                  );
                 },
                 child: Text(AppStrings.get('save')),
               ),
