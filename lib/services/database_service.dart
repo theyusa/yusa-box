@@ -27,6 +27,11 @@ class DatabaseService {
     debugPrint('[Database] Initialized successfully');
     debugPrint('[Database] Subscriptions box length: ${_subscriptionsBox.length}');
     debugPrint('[Database] Servers box length: ${_serversBox.length}');
+
+    await _subscriptionsBox.flush();
+    await _serversBox.flush();
+    await _settingsBox.flush();
+    debugPrint('[Database] All boxes flushed to disk');
   }
 
   // Subscriptions
@@ -34,12 +39,9 @@ class DatabaseService {
     debugPrint('[Database] Saving ${subscriptions.length} subscriptions...');
     await _subscriptionsBox.clear();
     for (var i = 0; i < subscriptions.length; i++) {
-      final json = subscriptions[i].toJson();
-      debugPrint('[Database] Saving subscription $i: ${json['name']} with ${json['servers']?.length ?? 0} servers');
-      await _subscriptionsBox.put(i.toString(), json);
+      await _subscriptionsBox.put(i.toString(), subscriptions[i].toJson());
     }
     debugPrint('[Database] Saved! Box length: ${_subscriptionsBox.length}');
-    // Force write to disk
     await _subscriptionsBox.flush();
     debugPrint('[Database] Flushed to disk');
   }
@@ -50,9 +52,7 @@ class DatabaseService {
     for (var i = 0; i < _subscriptionsBox.length; i++) {
       final data = _subscriptionsBox.get(i.toString());
       if (data != null) {
-        final json = Map<String, dynamic>.from(data);
-        debugPrint('[Database] Loaded subscription $i: ${json['name']}');
-        subscriptions.add(VPNSubscription.fromJson(json));
+        subscriptions.add(VPNSubscription.fromJson(data as Map<String, dynamic>));
       }
     }
     debugPrint('[Database] Loaded ${subscriptions.length} subscriptions');
@@ -73,7 +73,7 @@ class DatabaseService {
     for (final key in _serversBox.keys) {
       final data = _serversBox.get(key);
       if (data != null) {
-        servers.add(VPNServer.fromJson(Map<String, dynamic>.from(data)));
+        servers.add(VPNServer.fromJson(data as Map<String, dynamic>));
       }
     }
     return servers;
