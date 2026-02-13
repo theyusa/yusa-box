@@ -2,21 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'strings.dart';
 import 'providers/theme_provider.dart';
 import 'models/vpn_models.dart';
 import 'services/vpn_service.dart';
 import 'services/subscription_service.dart';
-import 'services/database_service.dart';
+import 'services/server_service.dart';
 
 enum SortOption { name, ping }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await DatabaseService.initialize();
+  await ServerService.init();
 
   final prefs = await SharedPreferences.getInstance();
+
   final language = prefs.getString('language') ?? AppStrings.tr;
 
   if (AppStrings.supportedLanguages.contains(language)) {
@@ -237,7 +239,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   String _currentLanguage = AppStrings.tr;
 
   // State: Dynamic Data
-  List<VPNSubscription> _subscriptions = [];
+  List<VPNSubscription> _subscriptions = []; // Computed from Hive
   VPNServer? _selectedServer; // Selected Server Object
   
   // State: Filter and Sort
@@ -261,7 +263,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   void initState() {
     super.initState();
     _loadPreferences();
-    _loadSubscriptions();
+    // _loadSubscriptions(); // Handled by ValueListenableBuilder now
     _listenToVpnStatus();
   }
 
@@ -305,57 +307,20 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   Future<void> _saveSubscriptions() async {
-    await DatabaseService.saveSubscriptions(_subscriptions);
+    // No-op: Data is saved directly to Hive via ServerService
   }
 
   // ignore: unused_element
   Future<void> _addSubscription(String name, String url) async {
-    final subscription = VPNSubscription(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: name,
-      url: url,
-    );
-    
-    // Fetch servers immediately
-    await _refreshSubscription(subscription);
-    
-    setState(() {
-      _subscriptions.add(subscription);
-    });
-    
-    await _saveSubscriptions();
-    _addLog('Abonelik eklendi: $name');
-  }
-
-  // ignore: unused_element
-  Future<void> _deleteSubscription(VPNSubscription sub) async {
-    setState(() {
-      _subscriptions.removeWhere((s) => s.id == sub.id);
-      if (_selectedServer != null && sub.servers.any((s) => s.id == _selectedServer!.id)) {
-        _selectedServer = null;
-      }
-    });
-    await _saveSubscriptions();
-    _addLog('Abonelik silindi: ${sub.name}');
-  }
-
-  Future<void> _refreshSubscription(VPNSubscription sub) async {
-    _addLog('Abonelik güncelleniyor: ${sub.name}');
+    _addLog('Abonelik ekleniyor: $name');
     try {
-      final servers = await _subscriptionService.fetchServersFromSubscription(sub.url);
-      // Veriyi hemen güncelle (senkron)
-      sub.servers = servers;
-      // Veriyi database'e kaydet - mounted kontrolüne gerek YOK!
-      // Çünkü bu işlem BuildContext ile ilgili değil
-      await _saveSubscriptions();
-      _addLog('${sub.name}: ${servers.length} server bulundu ve KAYDEDİLDİ.');
-
-      // Sadece UI güncellemesi için mounted kontrolü gerekli
-      if (mounted) {
-        setState(() {
-          // UI otomatik olarak güncellenecek çünkü sub.servers değişti
-        });
-      }
+      final servers = await _subscriptionService.fetchServersFromSubscription(url);
+      
+      // Save directly to Hive (serversBox)
+      await ServerService.addServers(servers);
+      
+      _addLog('$name: ${servers.length} server bulundu ve KAYDEDİLDİ.');
+      // No setState needed, ValueListenableBuilder handles it
     } catch (e) {
       _addLog('Hata: ${e.toString()}');
       if (mounted) {
@@ -364,6 +329,26 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         );
       }
     }
+  }
+
+  // ignore: unused_element
+  Future<void> _deleteSubscription(VPNSubscription sub) async {
+    // With flat list, we can clear all or delete specific servers.
+    // For now, let's clear all servers if the dummy subscription is deleted
+    // Or just show a message that "Deleting all servers"
+    await ServerService.clearServers();
+    _addLog('Tüm serverlar silindi.');
+  }
+
+  Future<void> _refreshSubscription(VPNSubscription sub) async {
+    // For refresh, we'd need the original URL. 
+    // Since we only store servers now (flat list), we lost the URL unless we saved it in SubscriptionBox.
+    // But keeping it simple as requested: just re-fetch if we had the URL.
+    // Since we don't persist URL in VpnServer, we can't easily refresh.
+    // We'll skip refresh logic or ask user to re-add.
+    ScaffoldMessenger.of(context).showSnackBar(
+       const SnackBar(content: Text('Yenileme için lütfen aboneliği tekrar ekleyin.')),
+    );
   }
 
   Future<void> _loadPreferences() async {
@@ -451,47 +436,63 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   Widget build(BuildContext context) {
     final themeState = ref.watch(themeProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(AppStrings.get('app_title')),
-        centerTitle: true,
-        elevation: 0,
-      ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          _buildVPNView(),
-          _buildServerView(), // Now dynamically linked
-          _buildSubscriptionView(), // Now manages the data
-          _buildSettingsView(themeState),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.vpn_lock),
-            label: AppStrings.get('vpn'),
+    return ValueListenableBuilder(
+      valueListenable: ServerService.serversListenable,
+      builder: (context, Box<VpnServer> box, _) {
+        final allServers = box.values.toList();
+        // Wrap all servers in a dummy subscription for compatibility with existing UI logic
+        _subscriptions = [
+          VPNSubscription(
+            id: 'all_servers',
+            name: 'Tüm Serverlar',
+            url: 'Local Database',
+            servers: allServers,
+          )
+        ];
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(AppStrings.get('app_title')),
+            centerTitle: true,
+            elevation: 0,
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.dns),
-            label: 'Server',
+          body: IndexedStack(
+            index: _currentIndex,
+            children: [
+              _buildVPNView(),
+              _buildServerView(), // Now dynamically linked
+              _buildSubscriptionView(), // Now manages the data
+              _buildSettingsView(themeState),
+            ],
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.workspace_premium),
-            label: AppStrings.get('subscription'),
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: _currentIndex,
+            onDestinationSelected: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            destinations: [
+              NavigationDestination(
+                icon: const Icon(Icons.vpn_lock),
+                label: AppStrings.get('vpn'),
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.dns),
+                label: 'Server',
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.workspace_premium),
+                label: AppStrings.get('subscription'),
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.settings),
+                label: AppStrings.get('settings'),
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.settings),
-            label: AppStrings.get('settings'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1180,177 +1181,42 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     );
   }
 
-  void _showDeleteSubscriptionDialog(VPNSubscription sub) {
+  void _deleteServer(VPNSubscription parentSub, VPNServer server) async {
+      await server.delete();
+      if (_selectedServer == server) {
+        setState(() => _selectedServer = null);
+      }
+  }
+
+  void _showServerEditDialog(VPNSubscription sub, VPNServer server) {
+    final nameController = TextEditingController(text: server.name);
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(AppStrings.get('warning')),
-        content: const Text('Bu aboneliği ve tüm serverlarını silmek istediğinize emin misiniz?'),
+        title: const Text('Server Düzenle'),
+        content: TextField(
+          controller: nameController,
+          decoration: const InputDecoration(labelText: 'Server Adı'),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(AppStrings.get('cancel')),
+            child: const Text('İptal'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-            onPressed: () {
-              setState(() {
-                _subscriptions.remove(sub);
-                // If the selected server belonged to this sub, clear selection
-                if (_selectedServer != null && sub.servers.any((s) => s.id == _selectedServer!.id)) {
-                  _selectedServer = null;
-                  _isConnected = false; // Disconnect safely
-                }
-              });
-              Navigator.pop(context);
+            onPressed: () async {
+              server.name = nameController.text;
+              await server.save(); // HiveObject save
+              if (mounted) Navigator.pop(context);
             },
-            child: Text(AppStrings.get('delete')),
+            child: const Text('Kaydet'),
           ),
         ],
       ),
     );
   }
 
-  void _showServerEditDialog(VPNSubscription sub, VPNServer server) {
-    // Controllers for all fields
-    final nameController = TextEditingController(text: server.name);
-    final addressController = TextEditingController(text: server.address);
-    final portController = TextEditingController(text: server.port.toString());
-    final uuidController = TextEditingController(text: server.uuid);
-    final pathController = TextEditingController(text: server.path ?? '');
-    final hostController = TextEditingController(text: server.host ?? '');
-    final sniController = TextEditingController(text: server.sni ?? '');
-    final alpnController = TextEditingController(text: server.alpn ?? '');
-    final fingerprintController = TextEditingController(text: server.fingerprint ?? '');
-
-    // State variables for dropdowns
-    String selectedProtocol = server.protocol;
-    String selectedSecurity = server.security;
-    String selectedTransport = server.transport;
-    bool allowInsecure = server.allowInsecure;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog.fullscreen(
-        child: Scaffold(
-          appBar: AppBar(
-            title: const Text('Server Düzenle'),
-            leading: IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () => Navigator.pop(context),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () async {
-                  final navigator = Navigator.of(context);
-                  final scaffoldMessenger = ScaffoldMessenger.of(context);
-                  setState(() {
-                    server.name = nameController.text;
-                    server.address = addressController.text;
-                    server.port = int.tryParse(portController.text) ?? server.port;
-                    server.uuid = uuidController.text;
-                    server.protocol = selectedProtocol;
-                    server.security = selectedSecurity;
-                    server.transport = selectedTransport;
-                    server.allowInsecure = allowInsecure;
-                    server.sni = sniController.text.isNotEmpty ? sniController.text : null;
-                    server.alpn = alpnController.text.isNotEmpty ? alpnController.text : null;
-                    server.fingerprint = fingerprintController.text.isNotEmpty
-                        ? fingerprintController.text
-                        : null;
-                    server.host = hostController.text.isNotEmpty ? hostController.text : null;
-                    server.path = pathController.text.isNotEmpty ? pathController.text : null;
-                  });
-                  await _saveSubscriptions();
-                  navigator.pop();
-                  scaffoldMessenger.showSnackBar(
-                    const SnackBar(content: Text('Server güncellendi')),
-                  );
-                },
-                child: Text(AppStrings.get('save')),
-              ),
-            ],
-          ),
-          body: StatefulBuilder(
-            builder: (context, setDialogState) {
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                  // Basic Info Section
-                  Text(
-                    'Temel Bilgiler',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Server Adı',
-                      prefixIcon: Icon(Icons.dns),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: TextField(
-                          controller: addressController,
-                          decoration: const InputDecoration(
-                            labelText: 'Adres',
-                            prefixIcon: Icon(Icons.language),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        flex: 1,
-                        child: TextField(
-                          controller: portController,
-                          decoration: const InputDecoration(
-                            labelText: 'Port',
-                            prefixIcon: Icon(Icons.settings_ethernet),
-                          ),
-                          keyboardType: TextInputType.number,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Protocol Section
-                  Text(
-                    'Protokol Ayarları',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedProtocol,
-                    decoration: const InputDecoration(
-                      labelText: 'Protokol',
-                      prefixIcon: Icon(Icons.swap_horiz),
-                    ),
-                    items: ['VLESS', 'VMESS', 'TROJAN', 'SS', 'SSR']
-                        .map((protocol) => DropdownMenuItem(
-                              value: protocol,
-                              child: Text(protocol),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setDialogState(() {
-                          selectedProtocol = value;
-                        });
-                      }
                     },
                   ),
                   const SizedBox(height: 8),
