@@ -1209,15 +1209,52 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
+      barrierDismissible: false,
+      builder: (context) => Dialog.fullscreen(
+        child: Scaffold(
+          appBar: AppBar(
             title: const Text('Server Düzenle'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            leading: IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => Navigator.pop(context),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    server.name = nameController.text;
+                    server.address = addressController.text;
+                    server.port = int.tryParse(portController.text) ?? server.port;
+                    server.uuid = uuidController.text;
+                    server.protocol = selectedProtocol;
+                    server.security = selectedSecurity;
+                    server.transport = selectedTransport;
+                    server.allowInsecure = allowInsecure;
+                    server.sni = sniController.text.isNotEmpty ? sniController.text : null;
+                    server.alpn = alpnController.text.isNotEmpty ? alpnController.text : null;
+                    server.fingerprint = fingerprintController.text.isNotEmpty
+                        ? fingerprintController.text
+                        : null;
+                    server.host = hostController.text.isNotEmpty ? hostController.text : null;
+                    server.path = pathController.text.isNotEmpty ? pathController.text : null;
+                  });
+                  _saveSubscriptions();
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Server güncellendi')),
+                  );
+                },
+                child: Text(AppStrings.get('save')),
+              ),
+            ],
+          ),
+          body: StatefulBuilder(
+            builder: (context, setDialogState) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   // Basic Info Section
                   Text(
                     'Temel Bilgiler',
@@ -1420,47 +1457,15 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   ),
                 ],
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(AppStrings.get('cancel')),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    server.name = nameController.text;
-                    server.address = addressController.text;
-                    server.port = int.tryParse(portController.text) ?? server.port;
-                    server.uuid = uuidController.text;
-                    server.protocol = selectedProtocol;
-                    server.security = selectedSecurity;
-                    server.transport = selectedTransport;
-                    server.allowInsecure = allowInsecure;
-                    server.sni = sniController.text.isNotEmpty ? sniController.text : null;
-                    server.alpn = alpnController.text.isNotEmpty ? alpnController.text : null;
-                    server.fingerprint = fingerprintController.text.isNotEmpty
-                        ? fingerprintController.text
-                        : null;
-                    server.host = hostController.text.isNotEmpty ? hostController.text : null;
-                    server.path = pathController.text.isNotEmpty ? pathController.text : null;
-                  });
-                  _saveSubscriptions();
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Server güncellendi')),
-                  );
-                },
-                child: Text(AppStrings.get('save')),
-              ),
-            ],
-          );
-        },
+            );
+          },
+        ),
       ),
-    );
-  }
+    ),
+  );
+}
 
-  void _deleteServer(VPNSubscription sub, VPNServer server) {
+void _deleteServer(VPNSubscription sub, VPNServer server) {
      setState(() {
       sub.servers.remove(server);
       if (_selectedServer?.id == server.id) {
@@ -1468,6 +1473,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         _isConnected = false;
       }
     });
+    _saveSubscriptions();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Server silindi')),
     );
