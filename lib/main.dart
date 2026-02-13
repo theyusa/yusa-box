@@ -1976,7 +1976,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           ...children.map((child) => Padding(
             padding: const EdgeInsets.only(bottom: 16),
             child: child,
-          )).toList(),
+          )),
         ],
       ),
     );
