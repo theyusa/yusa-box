@@ -296,6 +296,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   Future<void> _deleteSubscription(VPNSubscription sub) async {
     final index = _subscriptions.indexWhere((s) => s.id == sub.id);
     if (index != -1) {
+      await ServerService.clearServers();
       await ServerService.deleteSubscription(index);
       await _loadSubscriptions();
       _addLog('Abonelik silindi: ${sub.name}');
@@ -306,6 +307,9 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     _addLog('Abonelik yenileniyor: ${sub.name}');
     try {
       final servers = await _subscriptionService.fetchServersFromSubscription(sub.url);
+      
+      await ServerService.clearServers();
+      await ServerService.addServers(servers);
       
       final index = _subscriptions.indexWhere((s) => s.id == sub.id);
       if (index != -1) {
