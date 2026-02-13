@@ -79,18 +79,21 @@ class SubscriptionService {
     final String city = _getCity(serverAddress);
     final String name = '$flag $city'; // Default name
 
+    // Unique ID: address + port + protocol
+    final String uniqueId = '$serverAddress:$serverPort:$type';
+
     // Enrich JSON with UI helpers if missing
     json['flag'] = flag;
     json['city'] = city;
     json['name'] = json['name'] ?? name; // Preserve name if exists
-    
+
     // Ensure critical fields exist
     json['address'] = serverAddress;
     json['port'] = serverPort;
     json['type'] = type;
 
     return VpnServer(
-      id: serverAddress, // ID as address for now, ideally UUID
+      id: uniqueId,
       name: json['name'],
       config: jsonEncode(json),
       ping: '--',
@@ -130,10 +133,15 @@ class SubscriptionService {
     }
 
     final String address = configMap['address'] ?? 'unknown';
+    final String port = configMap['port']?.toString() ?? '443';
+    final String type = configMap['type'] ?? 'unknown';
     final String name = configMap['name'] ?? 'Unknown';
 
+    // Unique ID: address + port + protocol
+    final String uniqueId = '$address:$port:$type';
+
     return VpnServer(
-      id: address,
+      id: uniqueId,
       name: name,
       config: jsonEncode(configMap),
       ping: '--',
