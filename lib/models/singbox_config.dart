@@ -4,77 +4,183 @@ class SingBoxConfig {
   SingBoxConfig(this._data);
 
   Map<String, dynamic> buildOutbound() {
-    // 1. Temel Katman (Base)
+    final protocol = _data['type']?.toString().toLowerCase() ?? 'vless';
+
+    switch (protocol) {
+      case 'vless':
+        return _buildVlessOutbound();
+      case 'vmess':
+        return _buildVmessOutbound();
+      case 'trojan':
+        return _buildTrojanOutbound();
+      default:
+        return _buildVlessOutbound();
+    }
+  }
+
+  Map<String, dynamic> _buildVlessOutbound() {
     final Map<String, dynamic> config = {
-      'type': _data['type'] ?? _data['protocol'], // protocol veya type
-      'tag': _data['tag'] ?? 'proxy',
-      'server': _data['server'] ?? _data['address'],
-      'server_port': _data['server_port'] ?? _data['port'],
+      'type': 'vless',
+      'tag': 'proxy',
+      'server': _data['server'] ?? _data['address'] ?? '127.0.0.1',
+      'server_port': _data['server_port'] ?? _data['port'] ?? 443,
     };
 
-    // 2. Kimlik Doğrulama (Auth)
     if (_data['uuid'] != null) config['uuid'] = _data['uuid'];
-    if (_data['password'] != null) config['password'] = _data['password'];
-    if (_data['method'] != null) config['method'] = _data['method']; // SS için
 
-    // 3. TLS Katmanı
-    // 'security' alanı 'tls', 'reality' veya 'none' olabilir.
-    // Bazen 'tls' bool veya string gelebilir, kontrol edelim.
-    final String security = _data['security']?.toString() ?? 'none';
-    
-    if (security == 'tls' || security == 'reality') {
-      final tls = <String, dynamic>{
-        'enabled': true,
-        'server_name': _data['sni'] ?? _data['host'],
-        'alpn': _data['alpn'] is List ? _data['alpn'] : (_data['alpn'] != null ? [_data['alpn']] : null),
-      };
+    if (_data['flow'] != null) config['flow'] = _data['flow'];
 
-      if (security == 'reality') {
-        tls['reality'] = {
-          'enabled': true,
-          'public_key': _data['pbk'] ?? _data['publicKey'], // pbk veya publicKey
-          'short_id': _data['sid'] ?? _data['shortId'], // sid veya shortId
-        };
-      }
-
-      if (_data['fingerprint'] != null) {
-        tls['utls'] = {'enabled': true, 'fingerprint': _data['fingerprint']};
-      }
-      
-      // allowInsecure bazen string "1" veya bool true gelebilir
-      if (_data['allowInsecure'] == true || _data['allowInsecure'] == '1') {
-        tls['insecure'] = true;
-      }
-
-      config['tls'] = _removeNulls(tls);
+    if (_data['network'] != null) {
+      final network = _data['network']?.toString();
+      config['network'] = network == 'tcp' || network == 'udp' ? network : null;
     }
 
-    // 4. Transport Katmanı (Dinamik)
-    final String? transportType = _data['transport'] ?? _data['network'];
-    if (transportType != null && transportType != 'tcp') {
-      final transport = <String, dynamic>{
-        'type': transportType,
-        'path': _data['path'],
-        'headers': _data['host'] != null ? {'Host': _data['host']} : null,
-      };
-      
-      // gRPC özel ayarı
-      if (transportType == 'grpc') {
-        transport['service_name'] = _data['path'] ?? _data['serviceName'];
-        // gRPC'de path yerine service_name kullanılır, path'i temizleyelim karmaşa olmasın
-        transport.remove('path'); 
-      }
+    if (_data['packet_encoding'] != null) config['packet_encoding'] = _data['packet_encoding'];
 
-      config['transport'] = _removeNulls(transport);
-    }
+    final tls = _buildTLSConfig();
+    if (tls.isNotEmpty) config['tls'] = tls;
+
+    final multiplex = _buildMultiplexConfig();
+    if (multiplex.isNotEmpty) config['multiplex'] = multiplex;
+
+    final transport = _buildTransportConfig();
+    if (transport.isNotEmpty) config['transport'] = transport;
 
     return _removeNulls(config);
   }
 
-  // Null değerleri temizleyen yardımcı fonksiyon
+  Map<String, dynamic> _buildVmessOutbound() {
+    final Map<String, dynamic> config = {
+      'type': 'vmess',
+      'tag': 'proxy',
+      'server': _data['server'] ?? _data['address'] ?? '127.0.0.1',
+      'server_port': _data['server_port'] ?? _data['port'] ?? 443,
+    };
+
+    if (_data['uuid'] != null) config['uuid'] = _data['uuid'];
+
+    if (_data['security'] != null) config['security'] = _data['security'];
+
+    if (_data['alter_id'] != null) config['alter_id'] = _data['alter_id'];
+
+    if (_data['global_padding'] != null) config['global_padding'] = _data['global_padding'];
+
+    if (_data['authenticated_length'] != null) config['authenticated_length'] = _data['authenticated_length'];
+
+    if (_data['network'] != null) {
+      final network = _data['network']?.toString();
+      config['network'] = network == 'tcp' || network == 'udp' ? network : null;
+    }
+
+    if (_data['packet_encoding'] != null) config['packet_encoding'] = _data['packet_encoding'];
+
+    final tls = _buildTLSConfig();
+    if (tls.isNotEmpty) config['tls'] = tls;
+
+    final multiplex = _buildMultiplexConfig();
+    if (multiplex.isNotEmpty) config['multiplex'] = multiplex;
+
+    final transport = _buildTransportConfig();
+    if (transport.isNotEmpty) config['transport'] = transport;
+
+    return _removeNulls(config);
+  }
+
+  Map<String, dynamic> _buildTrojanOutbound() {
+    final Map<String, dynamic> config = {
+      'type': 'trojan',
+      'tag': 'proxy',
+      'server': _data['server'] ?? _data['address'] ?? '127.0.0.1',
+      'server_port': _data['server_port'] ?? _data['port'] ?? 443,
+    };
+
+    if (_data['password'] != null) config['password'] = _data['password'];
+
+    if (_data['network'] != null) {
+      final network = _data['network']?.toString();
+      config['network'] = network == 'tcp' || network == 'udp' ? network : null;
+    }
+
+    final tls = _buildTLSConfig();
+    if (tls.isNotEmpty) config['tls'] = tls;
+
+    final multiplex = _buildMultiplexConfig();
+    if (multiplex.isNotEmpty) config['multiplex'] = multiplex;
+
+    final transport = _buildTransportConfig();
+    if (transport.isNotEmpty) config['transport'] = transport;
+
+    return _removeNulls(config);
+  }
+
+  Map<String, dynamic> _buildTLSConfig() {
+    final security = _data['security']?.toString().toLowerCase() ?? 'none';
+    if (security == 'none') return {};
+
+    final Map<String, dynamic> tls = {};
+
+    if (security == 'reality') {
+      tls['enabled'] = true;
+      tls['reality'] = {
+        'enabled': true,
+        'public_key': _data['pbk'] ?? _data['public_key'],
+        'short_id': _data['sid'] ?? _data['short_id'],
+      };
+    } else {
+      tls['enabled'] = true;
+      tls['server_name'] = _data['sni'] ?? _data['host'];
+    }
+
+    if (_data['alpn'] != null) {
+      tls['alpn'] = _data['alpn'] is List ? _data['alpn'] : [_data['alpn']];
+    }
+
+    if (_data['fingerprint'] != null) {
+      tls['utls'] = {
+        'enabled': true,
+        'fingerprint': _data['fingerprint'],
+      };
+    }
+
+    if (_data['allowInsecure'] == true || _data['allowInsecure'] == '1') {
+      tls['insecure'] = true;
+    }
+
+    return _removeNulls(tls);
+  }
+
+  Map<String, dynamic> _buildMultiplexConfig() {
+    final Map<String, dynamic> multiplex = {};
+    return _removeNulls(multiplex);
+  }
+
+  Map<String, dynamic> _buildTransportConfig() {
+    final transportType = _data['transport'] ?? _data['network'] ?? 'tcp';
+    if (transportType == 'tcp') return {};
+
+    final Map<String, dynamic> transport = {
+      'type': transportType.toString(),
+    };
+
+    if (_data['path'] != null && transportType != 'grpc') {
+      transport['path'] = _data['path'];
+    }
+
+    if (_data['host'] != null) {
+      transport['headers'] = {
+        'Host': _data['host'],
+      };
+    }
+
+    if (transportType == 'grpc') {
+      transport['service_name'] = _data['path'] ?? _data['service_name'];
+      transport.remove('path');
+    }
+
+    return _removeNulls(transport);
+  }
+
   Map<String, dynamic> _removeNulls(Map<String, dynamic> map) {
-    // Recursive temizleme yapılabilir ama şimdilik shallow yeterli olabilir.
-    // Ancak iç içe map'lerde null kalmaması için map değerlerini de kontrol etmek iyi olur.
     final keys = List<String>.from(map.keys);
     for (final key in keys) {
       final value = map[key];
@@ -82,7 +188,9 @@ class SingBoxConfig {
         map.remove(key);
       } else if (value is Map<String, dynamic>) {
         map[key] = _removeNulls(value);
-        if ((map[key] as Map).isEmpty) map.remove(key); // Boş map'i sil
+        if ((map[key] as Map).isEmpty) map.remove(key);
+      } else if (value is List && value.isEmpty) {
+        map.remove(key);
       }
     }
     return map;

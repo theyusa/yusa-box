@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 import 'strings.dart';
 import 'providers/theme_provider.dart';
 import 'models/vpn_models.dart';
+import 'models/vpn_settings.dart';
 import 'services/vpn_service.dart';
 import 'services/subscription_service.dart';
 import 'services/server_service.dart';
@@ -243,6 +244,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   bool _isConnected = false;
   int _currentIndex = 0;
   String _currentLanguage = AppStrings.tr;
+  VpnSettings _vpnSettings = VpnSettings();
 
   // State: Dynamic Data
   List<VPNSubscription> _subscriptions = [];
@@ -273,6 +275,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   void initState() {
     super.initState();
     _loadPreferences();
+    _loadVpnSettings();
     _loadSubscriptions();
     _listenToVpnStatus();
   }
@@ -332,17 +335,15 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   Future<void> _deleteSubscription(VPNSubscription sub) async {
-    final index = _subscriptions.indexWhere((s) => s.id == sub.id);
+    final box = ServerService.subscriptionsBox;
+    final index = box.values.toList().indexWhere((s) => s.id == sub.id);
     if (index != -1) {
-      for (final server in sub.servers) {
-        await ServerService.removeModifiedServer(server.id);
-      }
-      
       await ServerService.deleteSubscription(index);
       await _loadSubscriptions();
-
       await ServerService.clearServers();
-      for (final remainingSub in _subscriptions) {
+      
+      final subscriptions = ServerService.getAllSubscriptions();
+      for (final remainingSub in subscriptions) {
         await ServerService.addServers(remainingSub.servers);
       }
 
@@ -355,10 +356,9 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     try {
       final servers = await _subscriptionService.fetchServersFromSubscription(sub.url);
 
-      await ServerService.applyModificationsToServers(servers);
-
       final box = ServerService.subscriptionsBox;
-      final index = box.values.toList().indexWhere((s) => s.id == sub.id);
+      final subscriptions = box.values.toList();
+      final index = subscriptions.indexWhere((s) => s.id == sub.id);
 
       final updatedSub = VPNSubscription(
         id: sub.id,
@@ -374,8 +374,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       }
 
       await ServerService.clearServers();
-      await ServerService.addServers(servers);
+      for (final s in ServerService.getAllSubscriptions()) {
+        await ServerService.addServers(s.servers);
+      }
 
+      await _loadSubscriptions();
       _addLog('${sub.name}: ${servers.length} server güncellendi');
     } catch (e) {
       _addLog('Hata: ${e.toString()}');
@@ -396,6 +399,13 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         _currentLanguage = language;
         AppStrings.setLanguage(language);
       });
+    }
+  }
+
+  Future<void> _loadVpnSettings() async {
+    final settings = await VpnSettings.load();
+    if (mounted) {
+      setState(() => _vpnSettings = settings);
     }
   }
 
@@ -776,9 +786,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         }
 
         _subscriptions = ServerService.getAllSubscriptions();
-        for (var sub in _subscriptions) {
-          sub.servers = allServers;
-        }
 
         if (_subscriptions.isEmpty) {
            return Center(
@@ -805,13 +812,10 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         // 1. Filter Servers
         List<VpnServer> filteredServers = [];
         if (_selectedSubId == null) {
-          // Flatten all
-          for (var sub in _subscriptions) {
-            filteredServers.addAll(sub.servers);
-          }
+          filteredServers = allServers;
         } else {
-          final sub = _subscriptions.firstWhere((s) => s.id == _selectedSubId, orElse: () => _subscriptions.first);
-          filteredServers.addAll(sub.servers);
+          final targetSub = _subscriptions.firstWhere((s) => s.id == _selectedSubId, orElse: () => _subscriptions.first);
+          filteredServers = targetSub.servers;
         }
 
     // 2. Sort Servers
@@ -819,7 +823,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       if (_currentSort == SortOption.name) {
         return a.name.compareTo(b.name);
       } else {
-        // Simple ping parser (removes 'ms' and parses int)
         int parsePing(String p) => int.tryParse(p.replaceAll(RegExp(r'[^0-9]'), '')) ?? 999;
         return parsePing(a.ping).compareTo(parsePing(b.ping));
       }
@@ -1273,11 +1276,30 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     );
   }
 
-  void _deleteServer(VPNSubscription parentSub, VpnServer server) async {
-    await ServerService.removeModifiedServer(server.id);
-    await server.delete();
-    if (_selectedServer?.id == server.id) {
-      setState(() => _selectedServer = null);
+  Future<void> _deleteServer(VPNSubscription parentSub, VpnServer server) async {
+    final box = ServerService.serversBox;
+    final servers = box.values.toList();
+    final index = servers.indexWhere((s) => s.id == server.id);
+    
+    if (index != -1) {
+      await ServerService.removeModifiedServer(server.id);
+      await box.deleteAt(index);
+      
+      final subscriptions = ServerService.getAllSubscriptions();
+      for (final sub in subscriptions) {
+        sub.servers.removeWhere((s) => s.id == server.id);
+      }
+      
+      final subIndex = ServerService.subscriptionsBox.values.toList().indexWhere((s) => s.id == parentSub.id);
+      if (subIndex != -1) {
+        await ServerService.updateSubscription(subIndex, parentSub);
+      }
+      
+      if (_selectedServer?.id == server.id) {
+        setState(() => _selectedServer = null);
+      }
+      
+      _addLog('Server silindi: ${server.name}');
     }
   }
 
@@ -1334,14 +1356,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       final port = data['port'] ?? data['server_port'] ?? 443;
 
       url = 'trojan://$password@$address:$port';
-    } else if (protocol == 'ss') {
-      final method = data['method'] ?? 'aes-256-gcm';
-      final password = data['password'] ?? '';
-      final address = data['address'] ?? data['server'] ?? '';
-      final port = data['port'] ?? data['server_port'] ?? 8388;
-
-      final auth = base64Encode(utf8.encode('$method:$password'));
-      url = 'ss://$auth@$address:$port';
     }
 
     if (url.isNotEmpty && mounted) {
@@ -1470,9 +1484,9 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                     const SizedBox(height: 24),
                     _buildSettingsSection('Protokol', [
                       DropdownButtonFormField<String>(
-                        initialValue: ['VLESS', 'VMESS', 'TROJAN', 'SHADOWSOCKS'].contains(selectedProtocol) ? selectedProtocol : 'VLESS',
+                        initialValue: ['VLESS', 'VMESS', 'TROJAN'].contains(selectedProtocol) ? selectedProtocol : 'VLESS',
                         decoration: const InputDecoration(labelText: 'Protokol', prefixIcon: Icon(Icons.vpn_key)),
-                        items: ['VLESS', 'VMESS', 'TROJAN', 'SHADOWSOCKS'].map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
+                        items: ['VLESS', 'VMESS', 'TROJAN'].map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
                         onChanged: (v) => setDialogState(() => selectedProtocol = v!),
                       ),
                       const SizedBox(height: 16),
@@ -1905,38 +1919,20 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     
     final configMap = {
       "log": {
-        "level": "info",
-        "timestamp": true
+        "level": "trace"
       },
-      "dns": {
-        "servers": [
-          {"tag": "google", "address": "8.8.8.8"},
-          {"tag": "cloudflare", "address": "1.1.1.1"}
-        ],
-        "final": "google"
-      },
+      "dns": _vpnSettings.buildSingboxDnsConfig(),
+      "experimental": _vpnSettings.buildSingboxExperimentalConfig(),
       "inbounds": [
-        {
-          "type": "tun",
-          "tag": "tun-in",
-          "inet4_address": "172.19.0.1/30",
-          "auto_route": true,
-          "strict_route": true,
-          "stack": "system",
-          "sniff": true
-        }
+        _vpnSettings.buildSingboxInboundConfig(),
+        _vpnSettings.buildSingboxMixedInboundConfig(),
       ],
       "outbounds": [
         outbound,
         {"type": "direct", "tag": "direct"},
-        {"type": "block", "tag": "block"}
+        {"type": "direct", "tag": "bypass"}
       ],
-      "route": {
-        "final": "proxy",
-        "rules": [
-          {"geoip": "private", "outbound": "direct"}
-        ]
-      }
+      "route": _vpnSettings.buildSingboxRouteConfig()
     };
 
     return jsonEncode(configMap);

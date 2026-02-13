@@ -90,7 +90,6 @@ class AppStrings {
       'vmess': 'VMess',
       'vless': 'VLESS',
       'trojan': 'Trojan',
-      'shadowsocks': 'Shadowsocks',
     },
     en: {
       'app_title': 'YusaBox',
@@ -177,7 +176,6 @@ class AppStrings {
       'vmess': 'VMess',
       'vless': 'VLESS',
       'trojan': 'Trojan',
-      'shadowsocks': 'Shadowsocks',
     },
   };
 

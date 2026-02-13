@@ -3,9 +3,55 @@ import 'package:http/http.dart' as http;
 import '../models/vpn_models.dart';
 
 class SubscriptionService {
+  static const String _ipInfoApiUrl = 'https://ipinfo.io/';
+  static final Map<String, _GeoInfo> _geoCache = {};
+  
+  static Future<_GeoInfo> _getGeoInfo(String address) async {
+    if (_geoCache.containsKey(address)) {
+      return _geoCache[address]!;
+    }
+    
+    try {
+      final response = await http.get(
+        Uri.parse('$_ipInfoApiUrl$address/json'),
+      ).timeout(const Duration(seconds: 5));
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final geoInfo = _GeoInfo(
+          country: data['country'] ?? '',
+          city: data['city'] ?? 'Unknown',
+        );
+        _geoCache[address] = geoInfo;
+        return geoInfo;
+      }
+    } catch (e) {
+      // API hatası, varsayılan değerler döndür
+    }
+    
+    final defaultInfo = _GeoInfo(country: '', city: 'Unknown');
+    _geoCache[address] = defaultInfo;
+    return defaultInfo;
+  }
+  
+  static String _countryCodeToFlag(String countryCode) {
+    if (countryCode.isEmpty) return '🌐';
+    
+    final base = 0x1F1E6;
+    final letters = countryCode.toUpperCase().codeUnits;
+    if (letters.length != 2) return '🌐';
+    
+    return String.fromCharCode(base + letters[0] - 0x41) + 
+           String.fromCharCode(base + letters[1] - 0x41);
+  }
+  
+  static void clearGeoCache() {
+    _geoCache.clear();
+  }
   
   Future<List<VpnServer>> fetchServersFromSubscription(String subscriptionUrl) async {
     try {
+      clearGeoCache();
       final response = await http.get(Uri.parse(subscriptionUrl));
       
       if (response.statusCode == 200) {
@@ -13,31 +59,30 @@ class SubscriptionService {
         
         if (subscriptionUrl.startsWith('vmess://') ||
             subscriptionUrl.startsWith('vless://') ||
-            subscriptionUrl.startsWith('trojan://') ||
-            subscriptionUrl.startsWith('ss://')) {
-          final server = _parseSingleServer(subscriptionUrl);
+            subscriptionUrl.startsWith('trojan://')) {
+          final server = await _parseSingleServer(subscriptionUrl);
           return [server];
         } else if (body.trim().startsWith('{') || body.trim().startsWith('[')) {
-          return _parseJsonConfig(body);
+          return await _parseJsonConfig(body);
         } else {
           try {
             final decoded = base64Decode(base64.normalize(body.trim()));
             final String content = utf8.decode(decoded);
             
             if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
-              return _parseJsonConfig(content);
+              return await _parseJsonConfig(content);
             } else if (content.contains('\n')) {
-              return _parseMultiLineConfig(content);
+              return await _parseMultiLineConfig(content);
             } else {
-              final server = _parseSingleServer(content);
+              final server = await _parseSingleServer(content);
               return [server];
             }
           } catch (e) {
             // If base64 decode fails, treat as plain text
             if (body.contains('\n')) {
-              return _parseMultiLineConfig(body);
+              return await _parseMultiLineConfig(body);
             } else {
-              final server = _parseSingleServer(body.trim());
+              final server = await _parseSingleServer(body.trim());
               return [server];
             }
           }
@@ -50,18 +95,18 @@ class SubscriptionService {
     }
   }
 
-  List<VpnServer> _parseJsonConfig(String jsonContent) {
+  Future<List<VpnServer>> _parseJsonConfig(String jsonContent) async {
     try {
       final dynamic json = jsonDecode(jsonContent);
       List<VpnServer> servers = [];
 
       if (json is List) {
         for (var item in json) {
-          final server = _createVpnServerFromMap(item as Map<String, dynamic>);
+          final server = await _createVpnServerFromMap(item as Map<String, dynamic>);
           servers.add(server);
         }
       } else if (json is Map) {
-        final server = _createVpnServerFromMap(json as Map<String, dynamic>);
+        final server = await _createVpnServerFromMap(json as Map<String, dynamic>);
         servers.add(server);
       }
 
@@ -71,63 +116,64 @@ class SubscriptionService {
     }
   }
 
-  VpnServer _createVpnServerFromMap(Map<String, dynamic> json) {
+  Future<VpnServer> _createVpnServerFromMap(Map<String, dynamic> json) async {
     final String type = json['type'] ?? 'vless';
     final String serverAddress = json['server'] ?? json['address'] ?? '';
     final int serverPort = json['server_port'] ?? json['port'] ?? 443;
-    final String flag = _getCountryFlag(serverAddress);
-    final String city = _getCity(serverAddress);
-    final String name = '$flag $city'; // Default name
+    
+    // Geo info from IP
+    final geoInfo = await _getGeoInfo(serverAddress);
+    final String flag = _countryCodeToFlag(geoInfo.country);
+    final String city = geoInfo.city;
+    
+    final String name = json['name'] ?? '$flag $city';
 
     // Unique ID: address + port + protocol
     final String uniqueId = '$serverAddress:$serverPort:$type';
 
-    // Enrich JSON with UI helpers if missing
+    // Enrich JSON with UI helpers
     json['flag'] = flag;
     json['city'] = city;
-    json['name'] = json['name'] ?? name; // Preserve name if exists
+    json['name'] = name;
 
     // Ensure critical fields exist
     json['address'] = serverAddress;
     json['port'] = serverPort;
+    json['server'] = serverAddress;
+    json['server_port'] = serverPort;
     json['type'] = type;
 
     return VpnServer(
       id: uniqueId,
-      name: json['name'],
+      name: name,
       config: jsonEncode(json),
       ping: '--',
     );
   }
 
-  List<VpnServer> _parseMultiLineConfig(String content) {
+  Future<List<VpnServer>> _parseMultiLineConfig(String content) async {
     List<VpnServer> servers = [];
     final lines = content.split('\n');
 
     for (String line in lines) {
       if (line.trim().isEmpty || line.startsWith('#')) continue;
       
-      final server = _parseSingleServer(line.trim());
+      final server = await _parseSingleServer(line.trim());
       servers.add(server);
     }
 
     return servers;
   }
 
-  VpnServer _parseSingleServer(String uriString) {
+  Future<VpnServer> _parseSingleServer(String uriString) async {
     Map<String, dynamic> configMap = {};
 
     if (uriString.startsWith('vmess://')) {
-      configMap = _parseVmessToMap(uriString);
+      configMap = await _parseVmessToMap(uriString);
     } else if (uriString.startsWith('vless://')) {
-      configMap = _parseVlessToMap(uriString);
+      configMap = await _parseVlessToMap(uriString);
     } else if (uriString.startsWith('trojan://')) {
-      configMap = _parseTrojanToMap(uriString);
-    } else if (uriString.startsWith('ss://')) {
-      configMap = _parseShadowsocksToMap(uriString);
-    } else if (uriString.startsWith('ssr://')) {
-       // SSR not fully supported in SingBoxConfig logic yet, treating as generic
-       configMap = {'type': 'ssr', 'raw': uriString};
+      configMap = await _parseTrojanToMap(uriString);
     } else {
        configMap = {'type': 'unknown', 'raw': uriString};
     }
@@ -148,7 +194,7 @@ class SubscriptionService {
     );
   }
 
-  Map<String, dynamic> _parseVmessToMap(String vmessUrl) {
+  Future<Map<String, dynamic>> _parseVmessToMap(String vmessUrl) async {
     try {
       final String encoded = vmessUrl.replaceFirst('vmess://', '');
       final String decoded = utf8.decode(base64Decode(base64.normalize(encoded)));
@@ -156,9 +202,11 @@ class SubscriptionService {
 
       final String address = json['add'] ?? json['address'] ?? '';
       final int port = json['port'] is String ? int.tryParse(json['port']) ?? 443 : json['port'] ?? 443;
-      final String flag = _getCountryFlag(address);
-      final String city = _getCity(address);
-      final String ps = json['ps'] ?? '';
+      final ps = json['ps'] ?? '';
+
+      final geoInfo = await _getGeoInfo(address);
+      final String flag = _countryCodeToFlag(geoInfo.country);
+      final String city = geoInfo.city;
 
       return {
         'type': 'vmess',
@@ -181,7 +229,7 @@ class SubscriptionService {
     }
   }
 
-  Map<String, dynamic> _parseVlessToMap(String vlessUrl) {
+  Future<Map<String, dynamic>> _parseVlessToMap(String vlessUrl) async {
     try {
       final String uri = vlessUrl.replaceFirst('vless://', '');
       final List<String> parts = uri.split('#');
@@ -217,8 +265,9 @@ class SubscriptionService {
         };
       }
       
-      final String flag = _getCountryFlag(address);
-      final String city = _getCity(address);
+      final geoInfo = await _getGeoInfo(address);
+      final String flag = _countryCodeToFlag(geoInfo.country);
+      final String city = geoInfo.city;
 
       return {
         'type': 'vless',
@@ -235,7 +284,7 @@ class SubscriptionService {
     }
   }
 
-  Map<String, dynamic> _parseTrojanToMap(String trojanUrl) {
+  Future<Map<String, dynamic>> _parseTrojanToMap(String trojanUrl) async {
     try {
       final String uri = trojanUrl.replaceFirst('trojan://', '');
       final List<String> parts = uri.split('#');
@@ -265,8 +314,9 @@ class SubscriptionService {
         };
       }
       
-      final String flag = _getCountryFlag(address);
-      final String city = _getCity(address);
+      final geoInfo = await _getGeoInfo(address);
+      final String flag = _countryCodeToFlag(geoInfo.country);
+      final String city = geoInfo.city;
 
       return {
         'type': 'trojan',
@@ -282,55 +332,11 @@ class SubscriptionService {
       return {'type': 'error', 'name': 'Trojan Parse Error'};
     }
   }
+}
 
-  Map<String, dynamic> _parseShadowsocksToMap(String ssUrl) {
-     try {
-        final uri = ssUrl.replaceFirst('ss://', '');
-        final parts = uri.split('@');
-        if (parts.length != 2) throw FormatException('Invalid SS URL');
-        
-        final authParts = parts[0].split(':');
-        final serverParts = parts[1].split(':');
-        final portAndName = serverParts[1].split('#');
-        
-        return {
-          'type': 'ss',
-          'method': authParts[0],
-          'password': authParts[1],
-          'address': serverParts[0],
-          'port': int.tryParse(portAndName[0]) ?? 8388,
-          'name': Uri.decodeComponent(portAndName.length > 1 ? portAndName[1] : 'SS Server'),
-        };
-     } catch (e) {
-        return {'type': 'error', 'name': 'SS Parse Error: ${e.toString()}'};
-     }
-  }
-
-  String _getCountryFlag(String server) {
-    if (server.endsWith('.tr') || server.contains('.tr')) return '🇹🇷';
-    if (server.contains('89.35.73')) return '🇹🇷';
-    if (server.contains('194.62.54')) return '🇳🇱';
-    if (server.endsWith('.de') || server.contains('.de')) return '🇩🇪';
-    if (server.endsWith('.nl') || server.contains('.nl')) return '🇳🇱';
-    if (server.endsWith('.us') || server.contains('.us')) return '🇺🇸';
-    if (server.endsWith('.fr') || server.contains('.fr')) return '🇫🇷';
-    if (server.endsWith('.uk') || server.contains('.uk')) return '🇬🇧';
-    if (server.endsWith('.ru') || server.contains('.ru')) return '🇷🇺';
-    if (server.endsWith('.jp') || server.contains('.jp')) return '🇯🇵';
-    if (server.endsWith('.sg') || server.contains('.sg')) return '🇸🇬';
-    if (server.endsWith('.hk') || server.contains('.hk')) return '🇭🇰';
-    return '🌐';
-  }
-
-  String _getCity(String server) {
-    if (server.contains('theyusa') || server.contains('89.35.73')) return 'Turkey';
-    if (server.contains('rebecca') || server.contains('194.62.54')) return 'Netherlands';
-    if (server.contains('germany') || server.contains('.de')) return 'Germany';
-    if (server.contains('netherlands') || server.contains('.nl')) return 'Netherlands';
-    if (server.contains('united') || server.contains('.us')) return 'United States';
-    if (server.contains('singapore') || server.contains('.sg')) return 'Singapore';
-    if (server.contains('japan') || server.contains('.jp')) return 'Japan';
-    if (server.contains('uk') || server.contains('.uk')) return 'United Kingdom';
-    return 'Unknown';
-  }
+class _GeoInfo {
+  final String country;
+  final String city;
+  
+  _GeoInfo({required this.country, required this.city});
 }
