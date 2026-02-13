@@ -254,7 +254,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
   // State: VPN Session
   DateTime? _connectionStartTime;
-  final String _currentIp = '---.---.---.---';
+  String _currentIp = '---.---.---.---';
 
   // Logs
   final List<String> _logs = [
@@ -863,11 +863,12 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                     tooltip: 'Tümünü Güncelle',
                     icon: const Icon(Icons.refresh),
                     onPressed: () async {
+                      final scaffoldMessenger = ScaffoldMessenger.of(context);
                       for (var sub in _subscriptions) {
                         await _refreshSubscription(sub);
                       }
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        scaffoldMessenger.showSnackBar(
                           const SnackBar(content: Text('Tüm abonelikler güncellendi')),
                         );
                       }
