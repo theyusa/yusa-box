@@ -1,4 +1,5 @@
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter/foundation.dart';
 import '../models/vpn_models.dart';
 
 class DatabaseService {
@@ -9,30 +10,52 @@ class DatabaseService {
   static late Box<Map> _subscriptionsBox;
   static late Box<Map> _serversBox;
   static late Box<dynamic> _settingsBox;
+  static bool _isInitialized = false;
 
   static Future<void> initialize() async {
+    if (_isInitialized) {
+      debugPrint('[Database] Already initialized, skipping');
+      return;
+    }
+
+    debugPrint('[Database] Initializing Hive...');
     await Hive.initFlutter();
     _subscriptionsBox = await Hive.openBox<Map>(_subscriptionsBoxName);
     _serversBox = await Hive.openBox<Map>(_serversBoxName);
     _settingsBox = await Hive.openBox<dynamic>(_settingsBoxName);
+    _isInitialized = true;
+    debugPrint('[Database] Initialized successfully');
+    debugPrint('[Database] Subscriptions box length: ${_subscriptionsBox.length}');
+    debugPrint('[Database] Servers box length: ${_serversBox.length}');
   }
 
   // Subscriptions
   static Future<void> saveSubscriptions(List<VPNSubscription> subscriptions) async {
+    debugPrint('[Database] Saving ${subscriptions.length} subscriptions...');
     await _subscriptionsBox.clear();
     for (var i = 0; i < subscriptions.length; i++) {
-      await _subscriptionsBox.put(i.toString(), subscriptions[i].toJson());
+      final json = subscriptions[i].toJson();
+      debugPrint('[Database] Saving subscription $i: ${json['name']} with ${json['servers']?.length ?? 0} servers');
+      await _subscriptionsBox.put(i.toString(), json);
     }
+    debugPrint('[Database] Saved! Box length: ${_subscriptionsBox.length}');
+    // Force write to disk
+    await _subscriptionsBox.flush();
+    debugPrint('[Database] Flushed to disk');
   }
 
   static List<VPNSubscription> loadSubscriptions() {
+    debugPrint('[Database] Loading subscriptions...');
     final subscriptions = <VPNSubscription>[];
     for (var i = 0; i < _subscriptionsBox.length; i++) {
       final data = _subscriptionsBox.get(i.toString());
       if (data != null) {
-        subscriptions.add(VPNSubscription.fromJson(Map<String, dynamic>.from(data)));
+        final json = Map<String, dynamic>.from(data);
+        debugPrint('[Database] Loaded subscription $i: ${json['name']}');
+        subscriptions.add(VPNSubscription.fromJson(json));
       }
     }
+    debugPrint('[Database] Loaded ${subscriptions.length} subscriptions');
     return subscriptions;
   }
 

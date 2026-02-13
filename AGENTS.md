@@ -1,116 +1,144 @@
 # Agent Guidelines for yusa_box
 
-This repository uses Flutter 3+ with Dart SDK ^3.11.0. Follow these guidelines when working with this codebase.
+This repository uses Flutter 3+ with Dart SDK ^3.11.0, Riverpod for state management, and Hive for local database. Follow these guidelines when working with this codebase.
 
 ## Build, Lint, and Test Commands
 
 ### Essential Commands
-- `flutter analyze` - Run static analysis (linting)
-- `flutter test` - Run all tests
-- `flutter test test/my_test.dart` - Run single test file
-- `flutter run` - Run the app on connected device/emulator
-- `flutter build apk` - Build Android APK
-- `flutter build ios` - Build iOS application
-- `flutter pub get` - Install dependencies
-- `flutter pub upgrade` - Upgrade dependencies
-
-### Running Specific Tests
 ```bash
-# Run tests matching a name pattern
-flutter test --name="testName"
+flutter analyze                    # Run static analysis (linting)
+flutter test                       # Run all tests
+flutter test test/my_test.dart     # Run single test file
+flutter test --name="testName"     # Run tests matching name pattern
+flutter test --coverage            # Run tests with coverage
+flutter run                        # Run app on connected device/emulator
+flutter build apk --release        # Build Android APK (unsigned)
+flutter build ios                  # Build iOS application
+flutter pub get                    # Install dependencies
+flutter pub upgrade                # Upgrade dependencies
+dart format .                      # Format code
+```
 
-# Run tests in a specific file
-flutter test test/widget_test.dart
-
-# Run with coverage
-flutter test --coverage
+### Code Generation
+```bash
+flutter pub run build_runner build      # Generate Riverpod code
+flutter pub run build_runner watch      # Watch mode for code generation
 ```
 
 ## Code Style Guidelines
 
 ### Imports
-- Use absolute imports for package dependencies
-- Group imports: Flutter packages → Third-party packages → Local files
-- Separate groups with blank lines
-- Use `package:` for local lib imports
+Group imports in this order with blank lines between groups:
+1. Flutter SDK imports
+2. Third-party package imports (Riverpod, Hive, HTTP, etc.)
+3. Local file imports (relative paths)
 
-Example:
 ```dart
 import 'package:flutter/material.dart';
-import 'package:cupertino_icons/cupertino_icons.dart';
-import 'package:yusa_box/services/api_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
+import 'models/vpn_models.dart';
+import 'services/database_service.dart';
 ```
 
 ### Formatting
-- Use Dart formatter: `dart format .` (or `flutter format .`)
+- Use `dart format .` for consistent formatting
 - Use 2-space indentation
 - Max line length: 80 characters
-- Prefer double quotes for strings
+- **Use single quotes for strings** (project convention)
 - Use trailing commas in multi-line lists and function calls
+- Prefer `const` constructors for immutable widgets
 
 ### Naming Conventions
-- **Classes**: PascalCase (e.g., `MyHomePage`, `DataModel`)
-- **Functions/Methods**: camelCase (e.g., `_incrementCounter`, `fetchData`)
-- **Variables**: camelCase (e.g., `_counter`, `userName`)
-- **Constants**: lowerCamelCase with leading underscore for private (e.g., `_maxItems`)
-- **Files**: snake_case (e.g., `api_service.dart`, `user_model.dart`)
-- **Private members**: Prefix with underscore (e.g., `_privateMethod`, `_localVariable`)
-- **Widget types**: PascalCase suffix (e.g., `MyHomePageState`, `CustomButtonWidget`)
+- **Classes**: PascalCase (e.g., `VPNServer`, `VPNSubscription`)
+- **Functions/Methods**: camelCase (e.g., `_loadSubscriptions`, `fetchData`)
+- **Variables**: camelCase (e.g., `_subscriptions`, `userName`)
+- **Private members**: Prefix with underscore (e.g., `_privateMethod`, `_selectedServer`)
+- **Files**: snake_case (e.g., `database_service.dart`, `vpn_models.dart`)
+- **Enums**: camelCase for values (e.g., `SortOption { name, ping }`)
 
 ### Type Annotations
 - Explicitly type public API members
 - Use `var` for local variables when type is obvious
 - Use `final` for variables that won't be reassigned
 - Always specify return types for public functions
-- Use `?` for nullable types, `!` for null assertion when guaranteed non-null
+- Use `?` for nullable types
 
-Example:
 ```dart
-class User {
-  final String name;
-  final int? age;
+class VPNServer {
+  final String id;
+  String name;
+  String? path;  // Nullable
   
-  const User({required this.name, this.age});
+  VPNServer({
+    required this.id,
+    required this.name,
+    this.path,
+  });
   
-  String get displayName => name;
-}
-
-void processData(String input) {
-  final result = input.length;
+  Map<String, dynamic> toJson() => {...};
 }
 ```
 
 ### Error Handling
-- Use `try-catch` blocks for exception handling
-- Prefer `Exception` and custom exception classes
-- Use `throw` for unrecoverable errors
-- Return `Result` types or nullable types for expected failures
-- Log errors appropriately but don't expose sensitive data
+- Use `try-catch` for async operations
+- Use `debugPrint` instead of `print` (avoid_print lint enabled)
+- Don't expose sensitive data in error messages
+- Save data immediately after async operations, don't wait for UI updates
 
-Example:
 ```dart
-Future<User?> fetchUser(String id) async {
+Future<void> fetchData() async {
   try {
-    final data = await api.get('/users/$id');
-    return User.fromJson(data);
-  } on NetworkException catch (e) {
-    debugPrint('Network error: $e');
-    return null;
+    final data = await api.fetch();
+    // Save data immediately, outside of mounted check
+    await _saveToDatabase(data);
+    
+    if (mounted) {
+      setState(() => _data = data);
+    }
   } catch (e) {
-    debugPrint('Unexpected error: $e');
-    rethrow;
+    debugPrint('Error: $e');
   }
 }
 ```
 
-### Widgets
-- Use `const` constructors for widgets whenever possible
-- Separate business logic into models/services/repositories
-- Keep widget build methods focused on UI composition
-- Use `const` for all static widgets and icons
-- Prefer `StatefulWidget` only when state management is required
+### State Management (Riverpod)
+- Use `ConsumerWidget` and `ConsumerStatefulWidget` for widgets
+- Use `WidgetRef ref` to watch providers
+- Keep providers in separate files under `providers/`
 
-Example:
+```dart
+class MyWidget extends ConsumerWidget {
+  const MyWidget({super.key});
+  
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeState = ref.watch(themeProvider);
+    return Container();
+  }
+}
+```
+
+### Database (Hive)
+- Use `DatabaseService` for all database operations
+- Initialize Hive in `main()` before `runApp()`
+- Don't store BuildContext-related operations in database layer
+
+```dart
+// In main.dart
+await DatabaseService.initialize();
+
+// Usage
+await DatabaseService.saveSubscriptions(_subscriptions);
+```
+
+### Widgets
+- Use `const` constructors whenever possible
+- Separate business logic into services/models
+- Keep build methods focused on UI
+- Use `super.key` in constructor parameters
+
 ```dart
 class MyWidget extends StatelessWidget {
   const MyWidget({super.key, required this.title});
@@ -121,32 +149,23 @@ class MyWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
-      body: const Center(
-        child: CircularProgressIndicator(),
-      ),
+      body: const Center(child: CircularProgressIndicator()),
     );
   }
 }
 ```
 
-### Asynchronous Code
-- Use `async/await` over `.then()` chains
-- Handle exceptions in async functions
-- Use `FutureBuilder` or proper state management for async UI
-- Cancel subscriptions and dispose controllers properly
-
 ### Linting
-This project uses `flutter_lints` with the following notable rules:
-- `avoid_print` enabled (use `debugPrint` instead)
-- `prefer_single_quotes` available but not enforced
+This project uses `flutter_lints` with these active rules:
+- `avoid_print`: Use `debugPrint` instead
 - All Flutter/Dart recommended lints active
 
-To suppress a lint for a line:
+Suppress lint for a line:
 ```dart
 // ignore: lint_name
 ```
 
-To suppress for an entire file:
+Suppress for entire file:
 ```dart
 // ignore_for_file: lint_name
 ```
@@ -155,16 +174,29 @@ To suppress for an entire file:
 
 ```
 lib/
-  main.dart              # App entry point
-test/                    # Unit and widget tests
-android/                 # Android native code
-analysis_options.yaml    # Dart analyzer configuration
-pubspec.yaml            # Dependencies and project config
+  main.dart                    # App entry point
+  models/                      # Data models (VPN models)
+  services/                    # Business logic (database, VPN, subscriptions)
+  providers/                   # Riverpod providers (theme, etc.)
+  theme.dart                   # Theme configuration
+  strings.dart                 # Localization strings
+test/                          # Unit and widget tests
+android/                       # Android native code
+analysis_options.yaml          # Dart analyzer configuration
+pubspec.yaml                   # Dependencies
 ```
 
-## Testing
-- Place tests in `test/` directory mirroring `lib/` structure
+## Key Dependencies
+- **flutter_riverpod**: State management
+- **hive/hive_flutter**: Local database
+- **dynamic_color**: Material You dynamic colors
+- **http**: HTTP requests
+- **shared_preferences**: Simple key-value storage
+- **build_runner**: Code generation for Riverpod
+
+## Testing Guidelines
+- Mirror `lib/` structure in `test/`
 - Use `flutter_test` framework
-- Mock dependencies appropriately
-- Test both happy paths and error cases
-- Aim for meaningful test coverage
+- Mock external dependencies
+- Test both success and error cases
+- Widget tests for UI components
