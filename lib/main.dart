@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'strings.dart';
@@ -290,6 +291,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           if (state == 2) {
             _connectionStartTime = DateTime.now();
             _addLog('VPN Bağlandı');
+            _fetchCurrentIp();
           } else if (state == 4) {
             final message = status['message'] as String? ?? 'Hata';
             _addLog('VPN Hatası: $message');
@@ -300,6 +302,28 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         });
       }
     });
+  }
+
+  Future<void> _fetchCurrentIp() async {
+    try {
+      final response = await http.get(Uri.parse('https://api.ipify.org?format=json')).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception('Timeout');
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final ip = data['ip'] as String?;
+        if (ip != null && mounted) {
+          setState(() => _currentIp = ip);
+          _addLog('IP: $ip');
+        }
+      }
+    } catch (e) {
+      _addLog('IP alınamadı: ${e.toString()}');
+    }
   }
 
   Future<void> _loadSubscriptions() async {
@@ -733,39 +757,49 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   Widget _buildServerView() {
     final colorScheme = Theme.of(context).colorScheme;
 
-    if (_subscriptions.isEmpty) {
-       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.dns_outlined, size: 64, color: colorScheme.outline),
-            const SizedBox(height: 16),
-            Text(
-              'Server bulunamadı.',
-              style: TextStyle(color: colorScheme.onSurfaceVariant),
-            ),
-            TextButton(
-              onPressed: () {
-                setState(() => _currentIndex = 2); // Go to Subscription tab
-              },
-              child: const Text('Abonelik Ekle'),
-            ),
-          ],
-        ),
-      );
-    }
+    return ValueListenableBuilder<Box<VpnServer>>(
+      valueListenable: ServerService.serversListenable,
+      builder: (context, box, _) {
+        final allServers = box.values.toList();
 
-    // 1. Filter Servers
-    List<VpnServer> filteredServers = [];
-    if (_selectedSubId == null) {
-      // Flatten all
-      for (var sub in _subscriptions) {
-        filteredServers.addAll(sub.servers);
-      }
-    } else {
-      final sub = _subscriptions.firstWhere((s) => s.id == _selectedSubId, orElse: () => _subscriptions.first);
-      filteredServers.addAll(sub.servers);
-    }
+        _subscriptions = ServerService.getAllSubscriptions();
+        for (var sub in _subscriptions) {
+          sub.servers = allServers;
+        }
+
+        if (_subscriptions.isEmpty) {
+           return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.dns_outlined, size: 64, color: colorScheme.outline),
+                const SizedBox(height: 16),
+                Text(
+                  'Server bulunamadı.',
+                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                ),
+                TextButton(
+                  onPressed: () {
+                    setState(() => _currentIndex = 2);
+                  },
+                  child: const Text('Abonelik Ekle'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // 1. Filter Servers
+        List<VpnServer> filteredServers = [];
+        if (_selectedSubId == null) {
+          // Flatten all
+          for (var sub in _subscriptions) {
+            filteredServers.addAll(sub.servers);
+          }
+        } else {
+          final sub = _subscriptions.firstWhere((s) => s.id == _selectedSubId, orElse: () => _subscriptions.first);
+          filteredServers.addAll(sub.servers);
+        }
 
     // 2. Sort Servers
     filteredServers.sort((a, b) {
@@ -999,6 +1033,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                 ),
         ),
       ],
+    );
+      },
     );
   }
 
