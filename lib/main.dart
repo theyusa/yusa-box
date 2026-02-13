@@ -812,116 +812,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       }
     });
 
-    return Column(
+    return Stack(
       children: [
-        // Header Section - Single solid background with title, actions, and filters
-        Container(
-          color: colorScheme.surface,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title & Actions Row
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Server Listesi',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    Row(
-                      children: [
-                        IconButton(
-                          tooltip: 'Ping Testi',
-                          icon: const Icon(Icons.network_check),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Tüm serverlar için ping testi başlatıldı...')),
-                            );
-                          },
-                        ),
-                        PopupMenuButton<SortOption>(
-                          icon: const Icon(Icons.sort),
-                          tooltip: 'Sırala',
-                          initialValue: _currentSort,
-                          onSelected: (SortOption item) {
-                            setState(() {
-                              _currentSort = item;
-                            });
-                          },
-                          itemBuilder: (BuildContext context) => <PopupMenuEntry<SortOption>>[
-                            const PopupMenuItem<SortOption>(
-                              value: SortOption.name,
-                              child: Text('İsim (A-Z)'),
-                            ),
-                            const PopupMenuItem<SortOption>(
-                              value: SortOption.ping,
-                              child: Text('Ping (Düşük - Yüksek)'),
-                            ),
-                          ],
-                        ),
-                        IconButton(
-                          tooltip: 'Tümünü Güncelle',
-                          icon: const Icon(Icons.refresh),
-                          onPressed: () async {
-                            final scaffoldMessenger = ScaffoldMessenger.of(context);
-                            for (var sub in _subscriptions) {
-                              await _refreshSubscription(sub);
-                            }
-                            if (mounted) {
-                              scaffoldMessenger.showSnackBar(
-                                const SnackBar(content: Text('Tüm abonelikler güncellendi')),
-                              );
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              // Filter Chips Row
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                child: Row(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: const Text('Tümü'),
-                        selected: _selectedSubId == null,
-                        onSelected: (bool selected) {
-                          setState(() {
-                            _selectedSubId = null;
-                          });
-                        },
-                      ),
-                    ),
-                    ..._subscriptions.map((sub) {
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          label: Text(sub.name),
-                          selected: _selectedSubId == sub.id,
-                          onSelected: (bool selected) {
-                            setState(() {
-                              _selectedSubId = selected ? sub.id : null;
-                            });
-                          },
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Server List
-        Expanded(
+        // Bottom Layer: Server List with top padding for header
+        Padding(
+          padding: const EdgeInsets.only(top: 140),
           child: filteredServers.isEmpty
               ? Center(
                   child: Text(
@@ -935,10 +830,9 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   itemBuilder: (context, index) {
                     final server = filteredServers[index];
                     final isSelected = _selectedServer?.id == server.id;
-                    
-                    // Find parent subscription for actions
+
                     final parentSub = _subscriptions.firstWhere(
-                      (s) => s.servers.contains(server), 
+                      (s) => s.servers.contains(server),
                       orElse: () => _subscriptions.first
                     );
 
@@ -963,34 +857,34 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                         subtitle: Column(
-                           crossAxisAlignment: CrossAxisAlignment.start,
-                           children: [
-                             Text(
-                               '${server.address}:${server.port}',
-                               style: TextStyle(
-                                 color: colorScheme.onSurfaceVariant,
-                                 fontWeight: FontWeight.w500,
-                               ),
-                             ),
-                             Text(
-                               '${server.city} • ${server.ping}',
-                               style: TextStyle(
-                                 color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
-                                 fontSize: 12,
-                               ),
-                             ),
-                             Text(
-                               '${server.protocol} • ${server.transport.toUpperCase()}${server.security == 'tls' ? ' • TLS' : ''}',
-                               style: TextStyle(
-                                 color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-                                 fontSize: 11,
-                               ),
-                             ),
-                           ],
-                         ),
-                        tileColor: isSelected 
-                            ? colorScheme.primaryContainer.withValues(alpha: 0.3) 
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${server.address}:${server.port}',
+                              style: TextStyle(
+                                color: colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            Text(
+                              '${server.city} • ${server.ping}',
+                              style: TextStyle(
+                                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              '${server.protocol} • ${server.transport.toUpperCase()}${server.security == 'tls' ? ' • TLS' : ''}',
+                              style: TextStyle(
+                                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                        tileColor: isSelected
+                            ? colorScheme.primaryContainer.withValues(alpha: 0.3)
                             : colorScheme.surfaceContainer,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         onTap: () {
@@ -998,42 +892,151 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                             _selectedServer = server;
                           });
                         },
-                         trailing: PopupMenuButton<String>(
-                           icon: Icon(Icons.more_vert, color: colorScheme.onSurfaceVariant),
-                           onSelected: (value) {
-                             if (value == 'edit') {
-                               _showServerEditDialog(parentSub, server);
-                             } else if (value == 'delete') {
-                               _deleteServer(parentSub, server);
-                             } else if (value == 'copy') {
-                               _copyServerUrl(server);
-                             }
-                           },
-                           itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                             const PopupMenuItem<String>(
-                               value: 'edit',
-                               child: Row(
-                                 children: [Icon(Icons.edit, size: 20), SizedBox(width: 8), Text('Düzenle')],
-                               ),
-                             ),
-                             const PopupMenuItem<String>(
-                               value: 'copy',
-                               child: Row(
-                                 children: [Icon(Icons.content_copy, size: 20), SizedBox(width: 8), Text('Kopyala')],
-                               ),
-                             ),
-                             const PopupMenuItem<String>(
-                               value: 'delete',
-                               child: Row(
-                                 children: [Icon(Icons.delete, color: Colors.red, size: 20), SizedBox(width: 8), Text('Sil', style: TextStyle(color: Colors.red))],
-                               ),
-                             ),
-                           ],
-                         ),
+                        trailing: PopupMenuButton<String>(
+                          icon: Icon(Icons.more_vert, color: colorScheme.onSurfaceVariant),
+                          onSelected: (value) {
+                            if (value == 'edit') {
+                              _showServerEditDialog(parentSub, server);
+                            } else if (value == 'delete') {
+                              _deleteServer(parentSub, server);
+                            } else if (value == 'copy') {
+                              _copyServerUrl(server);
+                            }
+                          },
+                          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                            const PopupMenuItem<String>(
+                              value: 'edit',
+                              child: Row(
+                                children: [Icon(Icons.edit, size: 20), SizedBox(width: 8), Text('Düzenle')],
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'copy',
+                              child: Row(
+                                children: [Icon(Icons.content_copy, size: 20), SizedBox(width: 8), Text('Kopyala')],
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'delete',
+                              child: Row(
+                                children: [Icon(Icons.delete, color: Colors.red, size: 20), SizedBox(width: 8), Text('Sil', style: TextStyle(color: Colors.red))],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },
                 ),
+        ),
+
+        // Top Layer: Header with opaque background
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            color: colorScheme.surface,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Server Listesi',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      Row(
+                        children: [
+                          IconButton(
+                            tooltip: 'Ping Testi',
+                            icon: const Icon(Icons.network_check),
+                            onPressed: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Tüm serverlar için ping testi başlatıldı...')),
+                              );
+                            },
+                          ),
+                          PopupMenuButton<SortOption>(
+                            icon: const Icon(Icons.sort),
+                            tooltip: 'Sırala',
+                            initialValue: _currentSort,
+                            onSelected: (SortOption item) {
+                              setState(() {
+                                _currentSort = item;
+                              });
+                            },
+                            itemBuilder: (BuildContext context) => <PopupMenuEntry<SortOption>>[
+                              const PopupMenuItem<SortOption>(
+                                value: SortOption.name,
+                                child: Text('İsim (A-Z)'),
+                              ),
+                              const PopupMenuItem<SortOption>(
+                                value: SortOption.ping,
+                                child: Text('Ping (Düşük - Yüksek)'),
+                              ),
+                            ],
+                          ),
+                          IconButton(
+                            tooltip: 'Tümünü Güncelle',
+                            icon: const Icon(Icons.refresh),
+                            onPressed: () async {
+                              final scaffoldMessenger = ScaffoldMessenger.of(context);
+                              for (var sub in _subscriptions) {
+                                await _refreshSubscription(sub);
+                              }
+                              if (mounted) {
+                                scaffoldMessenger.showSnackBar(
+                                  const SnackBar(content: Text('Tüm abonelikler güncellendi')),
+                                );
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                  child: Row(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: const Text('Tümü'),
+                          selected: _selectedSubId == null,
+                          onSelected: (bool selected) {
+                            setState(() {
+                              _selectedSubId = null;
+                            });
+                          },
+                        ),
+                      ),
+                      ..._subscriptions.map((sub) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(sub.name),
+                            selected: _selectedSubId == sub.id,
+                            onSelected: (bool selected) {
+                              setState(() {
+                                _selectedSubId = selected ? sub.id : null;
+                              });
+                            },
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );
