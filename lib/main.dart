@@ -285,17 +285,20 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   Future<void> _loadSubscriptions() async {
     _addLog('Database\'den abonelikler yükleniyor...');
     try {
-      _subscriptions = DatabaseService.loadSubscriptions();
-      if (_subscriptions.isNotEmpty) {
-        _addLog('${_subscriptions.length} abonelik yüklendi');
-        int totalServers = 0;
-        for (final sub in _subscriptions) {
-          totalServers += sub.servers.length;
+      final loadedSubs = DatabaseService.loadSubscriptions();
+      setState(() {
+        _subscriptions = loadedSubs;
+        if (_subscriptions.isNotEmpty) {
+          _addLog('${_subscriptions.length} abonelik yüklendi');
+          int totalServers = 0;
+          for (final sub in _subscriptions) {
+            totalServers += sub.servers.length;
+          }
+          _addLog('Toplam $totalServers server bulundu');
+        } else {
+          _addLog('Database BOŞ - Abonelik ekleyin');
         }
-        _addLog('Toplam $totalServers server bulundu');
-      } else {
-        _addLog('Database BOŞ - Abonelik ekleyin');
-      }
+      });
     } catch (e) {
       _addLog('Abonelikleri yükleme hatası: ${e.toString()}');
     }
