@@ -1240,6 +1240,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
             actions: [
               TextButton(
                 onPressed: () async {
+                  final navigator = Navigator.of(context);
                   setState(() {
                     server.name = nameController.text;
                     server.address = addressController.text;
@@ -1258,8 +1259,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                     server.path = pathController.text.isNotEmpty ? pathController.text : null;
                   });
                   await _saveSubscriptions();
+                  navigator.pop();
                   if (mounted) {
-                    Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Server güncellendi')),
                     );
@@ -1487,6 +1488,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 }
 
 void _deleteServer(VPNSubscription sub, VPNServer server) async {
+   final scaffoldMessenger = ScaffoldMessenger.of(context);
    setState(() {
     sub.servers.remove(server);
     if (_selectedServer?.id == server.id) {
@@ -1495,7 +1497,7 @@ void _deleteServer(VPNSubscription sub, VPNServer server) async {
     }
   });
   await _saveSubscriptions();
-  ScaffoldMessenger.of(context).showSnackBar(
+  scaffoldMessenger.showSnackBar(
     const SnackBar(content: Text('Server silindi')),
   );
 }
