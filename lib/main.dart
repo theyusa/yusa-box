@@ -334,12 +334,18 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     _addLog('Abonelik güncelleniyor: ${sub.name}');
     try {
       final servers = await _subscriptionService.fetchServersFromSubscription(sub.url);
+      // Veriyi hemen güncelle (senkron)
+      sub.servers = servers;
+      // Veriyi database'e kaydet - mounted kontrolüne gerek YOK!
+      // Çünkü bu işlem BuildContext ile ilgili değil
+      await _saveSubscriptions();
+      _addLog('${sub.name}: ${servers.length} server bulundu ve KAYDEDİLDİ.');
+
+      // Sadece UI güncellemesi için mounted kontrolü gerekli
       if (mounted) {
         setState(() {
-          sub.servers = servers;
-          _addLog('${sub.name}: ${servers.length} server bulundu.');
+          // UI otomatik olarak güncellenecek çünkü sub.servers değişti
         });
-        await _saveSubscriptions();
       }
     } catch (e) {
       _addLog('Hata: ${e.toString()}');
