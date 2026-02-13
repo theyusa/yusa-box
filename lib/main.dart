@@ -768,6 +768,13 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       builder: (context, box, _) {
         final allServers = box.values.toList();
 
+        for (final server in allServers) {
+          final modifiedConfig = ServerService.getModifiedServerConfig(server.id);
+          if (modifiedConfig != null) {
+            server.config = modifiedConfig;
+          }
+        }
+
         _subscriptions = ServerService.getAllSubscriptions();
         for (var sub in _subscriptions) {
           sub.servers = allServers;
@@ -1382,14 +1389,19 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   final navigator = Navigator.of(context);
                   final scaffoldMessenger = ScaffoldMessenger.of(context);
                   
-                  // Update fields using the dynamic helper
+                  server.name = nameController.text;
+                  
                   server.updateField('name', nameController.text);
                   server.updateField('address', addressController.text);
+                  server.updateField('server', addressController.text);
                   server.updateField('port', int.tryParse(portController.text) ?? 443);
+                  server.updateField('server_port', int.tryParse(portController.text) ?? 443);
                   server.updateField('uuid', uuidController.text);
                   server.updateField('protocol', selectedProtocol.toLowerCase());
+                  server.updateField('type', selectedProtocol.toLowerCase());
                   server.updateField('security', selectedSecurity);
                   server.updateField('transport', selectedTransport);
+                  server.updateField('network', selectedTransport);
                   server.updateField('allowInsecure', allowInsecure);
                   
                   server.updateField('sni', sniController.text.isNotEmpty ? sniController.text : null);
@@ -1398,8 +1410,18 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   server.updateField('host', hostController.text.isNotEmpty ? hostController.text : null);
                   server.updateField('path', pathController.text.isNotEmpty ? pathController.text : null);
 
-                  await server.save();
+                  final serversBox = ServerService.serversBox;
+                  final serverKey = server.key;
+                  final existingServer = serversBox.get(serverKey);
+                  
+                  if (existingServer != null) {
+                    existingServer.name = nameController.text;
+                    existingServer.config = server.config;
+                    await existingServer.save();
+                  }
+
                   await ServerService.saveModifiedServer(server);
+                  await server.save();
                   
                   navigator.pop();
                   scaffoldMessenger.showSnackBar(

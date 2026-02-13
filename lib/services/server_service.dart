@@ -99,7 +99,18 @@ class ServerService {
   static Future<void> applyModificationsToServers(List<VpnServer> servers) async {
     for (final server in servers) {
       if (modifiedServersBox.containsKey(server.id)) {
-        server.config = modifiedServersBox.get(server.id)!;
+        final modifiedConfig = modifiedServersBox.get(server.id)!;
+        server.config = modifiedConfig;
+        
+        final index = serversBox.values.toList().indexWhere((s) => s.id == server.id);
+        if (index != -1) {
+          final existingServer = serversBox.getAt(index);
+          if (existingServer != null) {
+            existingServer.config = modifiedConfig;
+            existingServer.name = server.parsedData['name'] ?? server.name;
+            await existingServer.save();
+          }
+        }
       }
     }
   }
