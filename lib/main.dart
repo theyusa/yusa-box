@@ -1365,6 +1365,12 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     );
   }
 
+    
+    scaffoldMessenger.showSnackBar(
+      const SnackBar(content: Text('Server silindi')),
+    );
+  }
+
 
                     },
                   ),
