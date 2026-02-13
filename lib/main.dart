@@ -814,115 +814,111 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
     return Column(
       children: [
-        // Header & Actions (Fixed with opaque background)
+        // Header Section - Single solid background with title, actions, and filters
         Container(
           color: colorScheme.surface,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Server Listesi',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Title & Actions Row
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Ping Test Action
-                    IconButton(
-                      tooltip: 'Ping Testi',
-                      icon: const Icon(Icons.network_check),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Tüm serverlar için ping testi başlatıldı...')),
-                        );
-                        // Simulate ping update logic here if needed
-                      },
+                    Text(
+                      'Server Listesi',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                     ),
-                    // Sort Action
-                    PopupMenuButton<SortOption>(
-                      icon: const Icon(Icons.sort),
-                      tooltip: 'Sırala',
-                      initialValue: _currentSort,
-                      onSelected: (SortOption item) {
-                        setState(() {
-                          _currentSort = item;
-                        });
-                      },
-                      itemBuilder: (BuildContext context) => <PopupMenuEntry<SortOption>>[
-                        const PopupMenuItem<SortOption>(
-                          value: SortOption.name,
-                          child: Text('İsim (A-Z)'),
+                    Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'Ping Testi',
+                          icon: const Icon(Icons.network_check),
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Tüm serverlar için ping testi başlatıldı...')),
+                            );
+                          },
                         ),
-                        const PopupMenuItem<SortOption>(
-                          value: SortOption.ping,
-                          child: Text('Ping (Düşük - Yüksek)'),
+                        PopupMenuButton<SortOption>(
+                          icon: const Icon(Icons.sort),
+                          tooltip: 'Sırala',
+                          initialValue: _currentSort,
+                          onSelected: (SortOption item) {
+                            setState(() {
+                              _currentSort = item;
+                            });
+                          },
+                          itemBuilder: (BuildContext context) => <PopupMenuEntry<SortOption>>[
+                            const PopupMenuItem<SortOption>(
+                              value: SortOption.name,
+                              child: Text('İsim (A-Z)'),
+                            ),
+                            const PopupMenuItem<SortOption>(
+                              value: SortOption.ping,
+                              child: Text('Ping (Düşük - Yüksek)'),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          tooltip: 'Tümünü Güncelle',
+                          icon: const Icon(Icons.refresh),
+                          onPressed: () async {
+                            final scaffoldMessenger = ScaffoldMessenger.of(context);
+                            for (var sub in _subscriptions) {
+                              await _refreshSubscription(sub);
+                            }
+                            if (mounted) {
+                              scaffoldMessenger.showSnackBar(
+                                const SnackBar(content: Text('Tüm abonelikler güncellendi')),
+                              );
+                            }
+                          },
                         ),
                       ],
                     ),
-                    // Update Action (Refresh all subs)
-                    IconButton(
-                      tooltip: 'Tümünü Güncelle',
-                      icon: const Icon(Icons.refresh),
-                      onPressed: () async {
-                        final scaffoldMessenger = ScaffoldMessenger.of(context);
-                        for (var sub in _subscriptions) {
-                          await _refreshSubscription(sub);
-                        }
-                        if (mounted) {
-                          scaffoldMessenger.showSnackBar(
-                            const SnackBar(content: Text('Tüm abonelikler güncellendi')),
-                          );
-                        }
-                      },
-                    ),
                   ],
                 ),
-              ],
-            ),
-          ),
-        ),
-
-        // Category Filter (Chips) (Fixed with opaque background)
-        Container(
-          color: colorScheme.surface,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: const Text('Tümü'),
-                    selected: _selectedSubId == null,
-                    onSelected: (bool selected) {
-                      setState(() {
-                        _selectedSubId = null;
-                      });
-                    },
-                  ),
-                ),
-                ..._subscriptions.map((sub) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(sub.name),
-                      selected: _selectedSubId == sub.id,
-                      onSelected: (bool selected) {
-                        setState(() {
-                          _selectedSubId = selected ? sub.id : null;
-                        });
-                      },
+              ),
+              // Filter Chips Row
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: Row(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: const Text('Tümü'),
+                        selected: _selectedSubId == null,
+                        onSelected: (bool selected) {
+                          setState(() {
+                            _selectedSubId = null;
+                          });
+                        },
+                      ),
                     ),
-                  );
-                }),
-              ],
-            ),
+                    ..._subscriptions.map((sub) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(sub.name),
+                          selected: _selectedSubId == sub.id,
+                          onSelected: (bool selected) {
+                            setState(() {
+                              _selectedSubId = selected ? sub.id : null;
+                            });
+                          },
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-
-        const SizedBox(height: 10),
 
         // Server List
         Expanded(
@@ -934,7 +930,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 20, top: 8),
+                  padding: const EdgeInsets.only(bottom: 20),
                   itemCount: filteredServers.length,
                   itemBuilder: (context, index) {
                     final server = filteredServers[index];
