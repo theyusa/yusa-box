@@ -10,8 +10,8 @@ This is a Flutter 3+ project with SingBox VPN core integration using Riverpod st
 # Flutter Commands
 ~/v2/flutter/bin/flutter analyze                    # Run static analysis (run before commits)
 ~/v2/flutter/bin/flutter test                       # Run all tests
-~/v2/flutter/bin/flutter test test/my_test.dart     # Run single test file
-~/v2/flutter/bin/flutter test --name="testName"     # Run tests matching pattern
+~/v2/flutter/bin/flutter test test/speed_test_service.dart     # Run single test file
+~/v2/flutter/bin/flutter test --name="ping"        # Run tests matching pattern
 ~/v2/flutter/bin/flutter run                        # Run app on device/emulator
 ~/v2/flutter/bin/flutter build apk --release        # Build Android release APK
 ~/v2/flutter/bin/flutter clean                     # Clean build artifacts
@@ -37,6 +37,7 @@ adb shell ps | grep yusabox                  # Check if app is running
 ### Imports
 Group imports in order with blank lines between groups:
 
+**Dart:**
 ```dart
 // Flutter SDK
 import 'package:flutter/material.dart';
@@ -53,7 +54,7 @@ import 'services/database_service.dart';
 import 'services/vpn_service.dart';
 ```
 
-**Kotlin imports:**
+**Kotlin:**
 ```kotlin
 // Android Framework
 import android.app.Notification
@@ -80,17 +81,17 @@ import com.yusabox.vpn.SingBoxWrapper
 - Prefer `const` constructors for immutable widgets
 
 ### Naming Conventions
-- **Dart Classes**: PascalCase (`VpnServer`, `VPNSubscription`, `PingResult`)
-- **Dart Functions/Methods**: camelCase (`_loadSubscriptions`, `fetchData`)
-- **Dart Variables**: camelCase (`_subscriptions`, `userName`)
-- **Dart Private members**: Prefix with underscore (`_privateMethod`, `_selectedServer`)
-- **Dart Files**: snake_case (`database_service.dart`, `ping_service.dart`)
-- **Dart Enums**: camelCase values (`SortOption { name, ping }`)
+**Dart Classes:** PascalCase (`VpnServer`, `VPNSubscription`, `PingResult`)
+**Dart Functions/Methods:** camelCase (`_loadSubscriptions`, `fetchData`)
+**Dart Variables:** camelCase (`_subscriptions`, `userName`)
+**Dart Private members:** Prefix with underscore (`_privateMethod`, `_selectedServer`)
+**Dart Files:** snake_case (`database_service.dart`, `ping_service.dart`)
+**Dart Enums:** camelCase values (`SortOption { name, ping }`)
 
-- **Kotlin Classes**: PascalCase (`SingBoxVpnService`, `VpnServiceManager`)
-- **Kotlin Objects**: PascalCase (`SingBoxWrapper`, object definitions)
-- **Kotlin Variables**: camelCase
-- **Kotlin Constants**: UPPER_SNAKE_CASE (`ACTION_START`, `EXTRA_CONFIG`)
+**Kotlin Classes:** PascalCase (`SingBoxVpnService`, `VpnServiceManager`)
+**Kotlin Objects:** PascalCase (`SingBoxWrapper`, object definitions)
+**Kotlin Variables:** camelCase
+**Kotlin Constants:** UPPER_SNAKE_CASE (`ACTION_START`, `EXTRA_CONFIG`)
 
 ### Type Annotations
 - Explicitly type public API members
@@ -147,7 +148,6 @@ private fun startVpn(config: String) {
   } catch (e: Exception) {
     Log.e(TAG, "VPN connection error", e)
     e.printStackTrace()
-    VpnServiceManager.updateStatus(STATE_ERROR, "Hata")
   }
 }
 ```
@@ -201,6 +201,8 @@ Suppress: `// ignore: lint_name` or `// ignore_for_file: lint_name`
 - Register network callback for connectivity changes
 - Handle VPN permission request in `MainActivity`
 - Implement auto-retry mechanism with max attempt limit
+- Add WakeLock mechanism to prevent battery optimization kills
+- Implement network reset on connection changes
 
 ### Native Library Integration (SingBox)
 - Use wrapper object (`SingBoxWrapper`) for JNI access
@@ -208,6 +210,7 @@ Suppress: `// ignore: lint_name` or `// ignore_for_file: lint_name`
 - Validate library loaded before any native calls
 - Use external function declarations with proper types
 - Handle `UnsatisfiedLinkError` for library loading failures
+- Package name must be `io.nekohasekai.libbox` for SingBox
 
 ### MethodChannel Communication
 - Define unique channel names: `com.yusabox.vpn/SERVICE_NAME`
@@ -262,15 +265,12 @@ android/
     src/main/kotlin/com/yusabox/vpn/
       MainActivity.kt          # Flutter integration
       SingBoxVpnService.kt  # VPN service
-      VpnServiceManager.kt     # Service state management
+      VpnServiceManager.kt    # Service state management
       SingBoxWrapper.kt       # JNI wrapper
       SpeedTestServiceManager.kt
       PingServiceManager.kt
     libs/
       libbox.aar              # SingBox native library
-
-test/
-  # Unit and widget tests
 ```
 
 ## Key Dependencies
@@ -303,7 +303,7 @@ test/
 ### Running Tests
 ```bash
 # Run specific test
-~/v2/flutter/bin/flutter test test/ping_service_test.dart
+~/v2/flutter/bin/flutter test test/speed_test_service.dart
 
 # Run tests matching pattern
 ~/v2/flutter/bin/flutter test --name="ping"
@@ -312,12 +312,24 @@ test/
 ~/v2/flutter/bin/flutter test --coverage
 ```
 
+### Test Coverage
+- Test VPN connection flow (permission → connect → connected)
+- Test disconnection flow
+- Test network change handling
+- Test server selection and filtering
+- Test subscription URL parsing
+- Test config generation for all protocols
+
 ## VPN Configuration Patterns
 
 ### Supported Protocols
 - **VLESS**: With TLS, Reality, WebSocket, gRPC support
 - **VMess**: With TLS, WebSocket, gRPC support
 - **Trojan**: With TLS, WebSocket, gRPC support
+- **Hysteria2**: With obfuscation support
+- **TUIC**: With congestion control
+- **Shadowsocks**: With multiple cipher methods
+- **SSH**: With key authentication
 
 ### Config Structure
 ```dart
@@ -358,6 +370,7 @@ test/
 - `[WARN]`: Non-critical warnings
 - `[ERROR]`: Error conditions
 - `[NATIVE]`: Android/VPN service messages
+- `[FATAL]`: Crash conditions
 - Prefix with timestamp for debugging
 
 ## Android Specific Notes
@@ -374,7 +387,7 @@ test/
 - `ACCESS_NETWORK_STATE`: Required for network monitoring
 
 ### Android Compatibility
-- Minimum SDK: Typically 21+ (Android 5.0)
+- Minimum SDK: 21+ (Android 5.0)
 - Target SDK: Latest stable
 - Use `ServiceCompat` for Android 14+ compatibility
 
@@ -387,3 +400,166 @@ test/
 5. **Check AAR library** version - Must match JNI signatures
 6. **Validate JSON configs** - Invalid configs cause crashes
 7. **Use proper error handling** - Never let exceptions crash the app silently
+
+## Connection State Management
+
+### UI State Variables
+```dart
+bool _isConnected = false;
+bool _isConnecting = false;
+DateTime? _connectionStartTime;
+VpnServer? _selectedServer;
+```
+
+### State Transitions
+1. **Idle** → **Connecting**: User taps connect button
+2. **Connecting** → **Connected**: VPN successfully established
+3. **Connected** → **Disconnected**: User taps disconnect or error occurs
+4. **Connecting** → **Error**: Connection fails, reset to idle
+
+### State Update Pattern
+```dart
+void _listenToVpnStatus() {
+  _vpnService.statusStream.listen((status) {
+    final state = status['state'] as int? ?? 0;
+    
+    if (mounted) {
+      setState(() {
+        if (state == 1) {
+          _isConnecting = true;
+          _isConnected = false;
+        } else if (state == 2) {
+          _isConnecting = false;
+          _isConnected = true;
+          _connectionStartTime = DateTime.now();
+        } else if (state == 4) {
+          _isConnecting = false;
+          _isConnected = false;
+        }
+      });
+    }
+  });
+}
+```
+
+## Native Code Best Practices
+
+### Kotlin Style
+- Use `const val` for constants at object level
+- Use `private val` for class-level variables
+- Use `lateinit var` for lateinit pattern
+- Use `private fun` for methods that don't need external access
+- Use `suspend fun` for coroutines with proper scope
+
+### Resource Management
+- Release resources in `onDestroy()` (WakeLock, connections, callbacks)
+- Use `try-finally` blocks to ensure cleanup
+- Handle null checks before accessing nullable resources
+
+### Thread Safety
+- Use `synchronized` blocks for shared state access
+- Use `Handler(Looper.getMainLooper()).post {}` for UI updates
+- Avoid blocking operations on event callback threads
+
+## Android 14+ Compatibility
+
+### ServiceCompat
+```kotlin
+if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+  ServiceCompat.stopForeground(this, NOTIFICATION_ID)
+} else {
+  @Suppress("DEPRECATION")
+  stopForeground(true)
+}
+```
+
+### Foreground Service Types
+- `FOREGROUND_SERVICE_TYPE_NETWORK` for VPN services
+- Add to service declaration in `AndroidManifest.xml`
+
+## Protocol-Specific Guidelines
+
+### VLESS Protocol
+```dart
+{
+  'type': 'vless',
+  'uuid': 'uuid-here',
+  'flow': 'xtls-rprx-vision',
+  'server': 'example.com',
+  'server_port': 443,
+  'tls': {
+    'enabled': true,
+    'server_name': 'example.com',
+    'utls': {
+      'enabled': true,
+      'fingerprint': 'chrome'
+    }
+  }
+}
+```
+
+### Hysteria2 Protocol
+```dart
+{
+  'type': 'hysteria2',
+  'server': 'example.com',
+  'server_port': 443,
+  'password': 'password-here',
+  'obfs': 'salamander',
+  'obfs-password': 'password-here'
+}
+```
+
+### TUIC Protocol
+```dart
+{
+  'type': 'tuic',
+  'server': 'example.com',
+  'server_port': 443,
+  'uuid': 'uuid-here',
+  'password': 'password-here',
+  'congestion_control': 'bbr'
+}
+```
+
+## Known Issues and Solutions
+
+### UI Freeze During Connection
+**Problem**: App freezes when tapping connect button
+**Cause**: Long-running VPN connection on main thread
+**Solution**: 
+- Add `_isConnecting` state to show loading indicator
+- Use `setState(() {})` to prevent blocking UI thread
+- Add 30-second timeout with error handling
+
+### VPN Connection Fails
+**Problem**: VPN doesn't connect, no error message
+**Cause**: Config validation fails silently
+**Solution**:
+- Validate JSON before sending to native
+- Check SingBox library is loaded
+- Check VPN permission is granted
+- Add detailed logging
+
+### Native Crash
+**Problem**: App crashes when connecting
+**Cause**: JNI function signatures don't match library
+**Solution**:
+- Verify `libbox.aar` version
+- Check package name: `io.nekohasekai.libbox`
+- Add exception handler in MainActivity
+- Use `UncaughtExceptionHandler`
+
+## Common Pitfalls
+
+### Heavy Operations on UI Thread
+→ Result: Janky scrolling, dropped frames, 1-star reviews
+✓ Use `compute()` and isolates for intensive work
+
+### Waiting for Tasks Unnecessarily
+→ Result: 2-3x slower load times than needed
+✓ Run parallel operations with `Future.wait()`
+
+### Memory Leaks from Unclosed Streams
+→ Result: App crashes after 10-15 minutes of use
+✓ Proper stream subscription management and disposal
