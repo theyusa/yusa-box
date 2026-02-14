@@ -663,64 +663,85 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   _isConnecting = true;
                 });
 
-                final hasPermission = await _vpnService.requestVpnPermission();
-                if (!hasPermission) {
-                  if (mounted) {
-                    scaffoldMessenger.showSnackBar(
-                      const SnackBar(content: Text('VPN izni gerekli')),
-                    );
-                  }
-                  setState(() {
-                    _isConnecting = false;
-                  });
-                  return;
-                }
-
-                if (_selectedServer != null) {
-                  final serverName =
-                      '${_selectedServer!.flag} ${_selectedServer!.name}';
-                  final config = _generateSingboxConfig(_selectedServer!);
-                  _addLog('Bağlanıyor: $serverName');
-
+                // VPN işlemini arka planda çalıştır
+                Future.microtask(() async {
                   try {
-                    final success = await _vpnService
-                        .startVpn(config, serverName: serverName)
-                        .timeout(
-                          const Duration(seconds: 30),
-                          onTimeout: () {
-                            setState(() {
-                              _isConnecting = false;
-                            });
-                            throw Exception('Bağlantı timeout oldu');
-                          },
+                    final hasPermission = await _vpnService
+                        .requestVpnPermission();
+                    if (!hasPermission) {
+                      if (mounted) {
+                        scaffoldMessenger.showSnackBar(
+                          const SnackBar(content: Text('VPN izni gerekli')),
                         );
+                      }
+                      if (mounted) {
+                        setState(() {
+                          _isConnecting = false;
+                        });
+                      }
+                      return;
+                    }
 
-                    setState(() {
-                      _isConnecting = false;
-                    });
+                    if (_selectedServer != null) {
+                      final serverName =
+                          '${_selectedServer!.flag} ${_selectedServer!.name}';
+                      final config = _generateSingboxConfig(_selectedServer!);
+                      _addLog('Bağlanıyor: $serverName');
 
-                    if (!success && mounted) {
-                      scaffoldMessenger.showSnackBar(
-                        const SnackBar(
-                          content: Text('VPN bağlantısı başarısız'),
-                        ),
-                      );
+                      try {
+                        final success = await _vpnService
+                            .startVpn(config, serverName: serverName)
+                            .timeout(
+                              const Duration(seconds: 30),
+                              onTimeout: () {
+                                if (mounted) {
+                                  setState(() {
+                                    _isConnecting = false;
+                                  });
+                                }
+                                throw Exception('Bağlantı timeout oldu');
+                              },
+                            );
+
+                        if (mounted) {
+                          setState(() {
+                            _isConnecting = false;
+                          });
+                        }
+
+                        if (!success && mounted) {
+                          scaffoldMessenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('VPN bağlantısı başarısız'),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          setState(() {
+                            _isConnecting = false;
+                          });
+                          scaffoldMessenger.showSnackBar(
+                            SnackBar(content: Text('Hata: ${e.toString()}')),
+                          );
+                        }
+                      }
+                    } else {
+                      if (mounted) {
+                        setState(() {
+                          _isConnecting = false;
+                        });
+                      }
                     }
                   } catch (e) {
-                    setState(() {
-                      _isConnecting = false;
-                    });
+                    debugPrint('VPN bağlantı hatası: $e');
                     if (mounted) {
-                      scaffoldMessenger.showSnackBar(
-                        SnackBar(content: Text('Hata: ${e.toString()}')),
-                      );
+                      setState(() {
+                        _isConnecting = false;
+                      });
                     }
                   }
-                } else {
-                  setState(() {
-                    _isConnecting = false;
-                  });
-                }
+                });
               }
             },
             backgroundColor: _isConnected

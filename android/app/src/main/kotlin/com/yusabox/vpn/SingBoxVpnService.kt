@@ -10,7 +10,10 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelFileDescriptor
+import android.os.Process
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -82,7 +85,8 @@ class SingBoxVpnService : VpnService() {
         if (isLibraryLoaded) {
             Log.i(TAG, "SingBox library loaded successfully")
         } else {
-            Log.e(TAG, "SingBox library NOT loaded")
+            val error = SingBoxWrapper.getLoadError()
+            Log.e(TAG, "SingBox library NOT loaded. Error: $error")
         }
     }
 
@@ -150,71 +154,121 @@ class SingBoxVpnService : VpnService() {
         val serverName = currentServerName ?: "Bilinmeyen"
         VpnServiceManager.updateConnectionInfo(serverName)
         
-        try {
-            startForeground(NOTIFICATION_ID, createNotification("Bağlanıyor..."))
-            Log.i(TAG, "Foreground service started")
-
-            if (!SingBoxWrapper.isLoaded) {
-                Log.e(TAG, "SingBox library not loaded")
-                VpnServiceManager.updateStatus(STATE_ERROR, "Library yüklenmedi")
-                VpnServiceManager.sendLog("[ERROR] SingBox library not loaded")
-                stopVpn()
-                return
-            }
-
-            if (config.isEmpty()) {
-                Log.e(TAG, "Config is empty")
-                VpnServiceManager.updateStatus(STATE_ERROR, "Config boş")
-                VpnServiceManager.sendLog("[ERROR] Config is empty")
-                stopVpn()
-                return
-            }
-
-            Log.i(TAG, "Starting VPN with server: $serverName")
-            Log.d(TAG, "Config length: ${config.length} bytes")
-            Log.d(TAG, "Files dir: ${filesDir.absolutePath}")
-            
-            val builder = Builder()
-            builder.setSession("YusaBox VPN")
-            
-            builder.addAddress(PRIVATE_VLAN4_CLIENT, 30)
-            builder.addDnsServer(PRIVATE_VLAN4_ROUTER)
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
-                SagerNet?.underlyingNetwork?.let {
-                    builder.setUnderlyingNetworks(arrayOf(it))
+        // VPN işlemini arka plan thread'inde çalıştır
+        Thread {
+            try {
+                // Library kontrolü
+                if (!SingBoxWrapper.isLoaded) {
+                    val error = SingBoxWrapper.getLoadError()
+                    Log.e(TAG, "SingBox library not loaded. Error: $error")
+                    VpnServiceManager.updateStatus(STATE_ERROR, "Library yüklenmedi: $error")
+                    VpnServiceManager.sendLog("[ERROR] SingBox library not loaded: $error")
+                    Handler(Looper.getMainLooper()).post { stopVpn() }
+                    return@Thread
                 }
-            }
-            
-            builder.addRoute("0.0.0.0", 0)
-            builder.addRoute(PRIVATE_VLAN6_CLIENT, 128)
-            builder.setMtu(1500)
-            
-            Log.i(TAG, "Establishing VPN interface...")
-            interfaceDescriptor = builder.establish()
 
-            if (interfaceDescriptor != null) {
+                if (config.isEmpty()) {
+                    Log.e(TAG, "Config is empty")
+                    VpnServiceManager.updateStatus(STATE_ERROR, "Config boş")
+                    VpnServiceManager.sendLog("[ERROR] Config is empty")
+                    Handler(Looper.getMainLooper()).post { stopVpn() }
+                    return@Thread
+                }
+
+                // Foreground service başlat
+                try {
+                    startForeground(NOTIFICATION_ID, createNotification("Bağlanıyor..."))
+                    Log.i(TAG, "Foreground service started")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to start foreground service: ${e.message}", e)
+                    VpnServiceManager.updateStatus(STATE_ERROR, "Foreground service hatası")
+                    return@Thread
+                }
+
+                Log.i(TAG, "Starting VPN with server: $serverName")
+                Log.d(TAG, "Config length: ${config.length} bytes")
+                Log.d(TAG, "Files dir: ${filesDir.absolutePath}")
+                
+                // VPN Interface oluştur
+                val builder = Builder()
+                builder.setSession("YusaBox VPN")
+                
+                builder.addAddress(PRIVATE_VLAN4_CLIENT, 30)
+                builder.addDnsServer(PRIVATE_VLAN4_ROUTER)
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                    SagerNet?.underlyingNetwork?.let {
+                        builder.setUnderlyingNetworks(arrayOf(it))
+                    }
+                }
+                
+                builder.addRoute("0.0.0.0", 0)
+                builder.addRoute(PRIVATE_VLAN6_CLIENT, 128)
+                builder.setMtu(1500)
+                
+                Log.i(TAG, "Establishing VPN interface...")
+                interfaceDescriptor = builder.establish()
+
+                if (interfaceDescriptor == null) {
+                    Log.e(TAG, "Failed to establish VPN interface - interfaceDescriptor is null")
+                    VpnServiceManager.updateStatus(STATE_ERROR, "VPN interface oluşturulamadı")
+                    VpnServiceManager.sendLog("[ERROR] Cannot establish VPN interface")
+                    Handler(Looper.getMainLooper()).post { stopVpn() }
+                    return@Thread
+                }
+
                 Log.i(TAG, "VPN interface established successfully")
                 Log.d(TAG, "FD: ${interfaceDescriptor!!.fd}")
                 
-                SingBoxWrapper.setup(filesDir.absolutePath, filesDir.absolutePath, false)
-                Log.d(TAG, "SingBox setup completed")
-
-                boxService = SingBoxWrapper.newService(config, interfaceDescriptor!!.fd.toLong())
-                if (boxService == null || boxService == 0L) {
-                    Log.e(TAG, "Failed to create SingBox service: $boxService")
-                    VpnServiceManager.updateStatus(STATE_ERROR, "Service oluşturulamadı")
-                    VpnServiceManager.sendLog("[ERROR] Failed to create SingBox service")
+                // SingBox Setup - try-catch ile sar
+                try {
+                    SingBoxWrapper.setup(filesDir.absolutePath, filesDir.absolutePath, false)
+                    Log.d(TAG, "SingBox setup completed")
+                } catch (e: Exception) {
+                    Log.e(TAG, "SingBox setup failed: ${e.message}", e)
+                    VpnServiceManager.updateStatus(STATE_ERROR, "SingBox setup hatası: ${e.message}")
+                    VpnServiceManager.sendLog("[ERROR] SingBox setup failed: ${e.message}")
                     interfaceDescriptor?.close()
-                    stopVpn()
-                    return
+                    Handler(Looper.getMainLooper()).post { stopVpn() }
+                    return@Thread
                 }
-                Log.i(TAG, "SingBox service created: $boxService")
 
+                // SingBox Service oluştur
+                try {
+                    boxService = SingBoxWrapper.newService(config, interfaceDescriptor!!.fd.toLong())
+                    if (boxService == null || boxService == 0L) {
+                        Log.e(TAG, "Failed to create SingBox service: $boxService")
+                        VpnServiceManager.updateStatus(STATE_ERROR, "Service oluşturulamadı")
+                        VpnServiceManager.sendLog("[ERROR] Failed to create SingBox service")
+                        interfaceDescriptor?.close()
+                        Handler(Looper.getMainLooper()).post { stopVpn() }
+                        return@Thread
+                    }
+                    Log.i(TAG, "SingBox service created: $boxService")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to create SingBox service: ${e.message}", e)
+                    VpnServiceManager.updateStatus(STATE_ERROR, "Service oluşturma hatası: ${e.message}")
+                    VpnServiceManager.sendLog("[ERROR] Service creation failed: ${e.message}")
+                    interfaceDescriptor?.close()
+                    Handler(Looper.getMainLooper()).post { stopVpn() }
+                    return@Thread
+                }
+
+                // Socket protection
                 protectSocketConnections()
 
-                SingBoxWrapper.startService(boxService!!)
-                Log.i(TAG, "SingBox service started")
+                // SingBox Service başlat
+                try {
+                    SingBoxWrapper.startService(boxService!!)
+                    Log.i(TAG, "SingBox service started")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to start SingBox service: ${e.message}", e)
+                    VpnServiceManager.updateStatus(STATE_ERROR, "Service başlatma hatası: ${e.message}")
+                    VpnServiceManager.sendLog("[ERROR] Service start failed: ${e.message}")
+                    interfaceDescriptor?.close()
+                    Handler(Looper.getMainLooper()).post { stopVpn() }
+                    return@Thread
+                }
 
                 connectionStartTime = System.currentTimeMillis()
                 VpnServiceManager.updateStatus(STATE_CONNECTED, "Bağlandı")
@@ -222,34 +276,35 @@ class SingBoxVpnService : VpnService() {
 
                 VpnServiceManager.startTrafficMonitoring()
                 Log.i(TAG, "=== VPN CONNECTION SUCCESSFUL ===")
-            } else {
-                Log.e(TAG, "Failed to establish VPN interface")
-                VpnServiceManager.updateStatus(STATE_ERROR, "VPN interface oluşturulamadı")
-                VpnServiceManager.sendLog("[ERROR] Cannot establish VPN interface")
-                stopVpn()
+                
+            } catch (e: IllegalStateException) {
+                Log.e(TAG, "IllegalStateException: ${e.message}", e)
+                VpnServiceManager.updateStatus(STATE_ERROR, "Sistem hatası: ${e.message}")
+                VpnServiceManager.sendLog("[ERROR] IllegalStateException: ${e.message}")
+                Log.i(TAG, "=== VPN CONNECTION FAILED ===")
+            } catch (e: IllegalArgumentException) {
+                Log.e(TAG, "IllegalArgumentException: ${e.message}", e)
+                VpnServiceManager.updateStatus(STATE_ERROR, "Yanlış config: ${e.message}")
+                VpnServiceManager.sendLog("[ERROR] IllegalArgumentException: ${e.message}")
+                Log.i(TAG, "=== VPN CONNECTION FAILED ===")
+            } catch (e: SecurityException) {
+                Log.e(TAG, "SecurityException: ${e.message}", e)
+                VpnServiceManager.updateStatus(STATE_ERROR, "İzin hatası: ${e.message}")
+                VpnServiceManager.sendLog("[ERROR] SecurityException: ${e.message}")
+                Log.i(TAG, "=== VPN CONNECTION FAILED ===")
+            } catch (e: UnsatisfiedLinkError) {
+                Log.e(TAG, "UnsatisfiedLinkError: ${e.message}", e)
+                VpnServiceManager.updateStatus(STATE_ERROR, "Native library hatası: ${e.message}")
+                VpnServiceManager.sendLog("[ERROR] Native library error: ${e.message}")
+                Log.i(TAG, "=== VPN CONNECTION FAILED ===")
+            } catch (e: Exception) {
+                Log.e(TAG, "VPN connection error", e)
+                e.printStackTrace()
+                VpnServiceManager.updateStatus(STATE_ERROR, "Hata: ${e.message}")
+                VpnServiceManager.sendLog("[ERROR] VPN connection error: ${e.message}")
+                Log.i(TAG, "=== VPN CONNECTION FAILED ===")
             }
-        } catch (e: IllegalStateException) {
-            Log.e(TAG, "IllegalStateException: ${e.message}", e)
-            VpnServiceManager.updateStatus(STATE_ERROR, "Sistem hatası: ${e.message}")
-            VpnServiceManager.sendLog("[ERROR] IllegalStateException: ${e.message}")
-            Log.i(TAG, "=== VPN CONNECTION FAILED ===")
-        } catch (e: IllegalArgumentException) {
-            Log.e(TAG, "IllegalArgumentException: ${e.message}", e)
-            VpnServiceManager.updateStatus(STATE_ERROR, "Yanlış config: ${e.message}")
-            VpnServiceManager.sendLog("[ERROR] IllegalArgumentException: ${e.message}")
-            Log.i(TAG, "=== VPN CONNECTION FAILED ===")
-        } catch (e: SecurityException) {
-            Log.e(TAG, "SecurityException: ${e.message}", e)
-            VpnServiceManager.updateStatus(STATE_ERROR, "İzin hatası: ${e.message}")
-            VpnServiceManager.sendLog("[ERROR] SecurityException: ${e.message}")
-            Log.i(TAG, "=== VPN CONNECTION FAILED ===")
-        } catch (e: Exception) {
-            Log.e(TAG, "VPN connection error", e)
-            e.printStackTrace()
-            VpnServiceManager.updateStatus(STATE_ERROR, "Hata: ${e.message}")
-            VpnServiceManager.sendLog("[ERROR] VPN connection error: ${e.message}")
-            Log.i(TAG, "=== VPN CONNECTION FAILED ===")
-        }
+        }.start()
     }
     
     private fun protectSocketConnections() {
@@ -276,13 +331,31 @@ class SingBoxVpnService : VpnService() {
         
         VpnServiceManager.stopTrafficMonitoring()
 
+        // Stop VPN işlemini arka plan thread'inde çalıştır
+        Thread {
             try {
-                boxService?.let { 
-                    Log.d(TAG, "Closing SingBox service: $it")
-                    SingBoxWrapper.closeService(it)
+                // SingBox service kapat
+                boxService?.let { service ->
+                    Log.d(TAG, "Closing SingBox service: $service")
+                    try {
+                        if (SingBoxWrapper.isLoaded) {
+                            SingBoxWrapper.closeService(service)
+                            Log.i(TAG, "SingBox service closed")
+                        } else {
+                            Log.w(TAG, "Cannot close service: library not loaded")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error closing SingBox service: ${e.message}", e)
+                    }
                 }
-                interfaceDescriptor?.close()
-                Log.i(TAG, "VPN interface closed")
+                
+                // Interface kapat
+                try {
+                    interfaceDescriptor?.close()
+                    Log.i(TAG, "VPN interface closed")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error closing interface: ${e.message}", e)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Error stopping VPN: ${e.message}", e)
                 VpnServiceManager.sendLog("[ERROR] ERROR stopping VPN: ${e.message}")
@@ -291,9 +364,10 @@ class SingBoxVpnService : VpnService() {
                 boxService = null
                 connectionStartTime = 0
                 
+                // Foreground service durdur
                 try {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        ServiceCompat.stopForeground(this, NOTIFICATION_ID)
+                        ServiceCompat.stopForeground(this@SingBoxVpnService, ServiceCompat.STOP_FOREGROUND_REMOVE)
                     } else {
                         @Suppress("DEPRECATION")
                         stopForeground(true)
@@ -307,6 +381,7 @@ class SingBoxVpnService : VpnService() {
                 VpnServiceManager.updateStatus(STATE_DISCONNECTED, "Bağlantı kesildi")
                 Log.i(TAG, "=== VPN STOPPED ===")
             }
+        }.start()
     }
     
     private fun attemptRetry() {
@@ -382,19 +457,22 @@ class SingBoxVpnService : VpnService() {
     }
 
     private fun resetConnections() {
-        try {
-            if (boxService != null) {
-                SingBoxWrapper.closeService(boxService!!)
-                boxService = SingBoxWrapper.newService(currentConfig ?: "", interfaceDescriptor?.fd?.toLong() ?: -1L)
-                if (boxService != null && boxService != 0L) {
-                    SingBoxWrapper.startService(boxService!!)
-                    Log.i(TAG, "Connections reset successfully")
-                    VpnServiceManager.sendLog("[NATIVE] Connections reset")
+        // Reset işlemini arka plan thread'inde çalıştır
+        Thread {
+            try {
+                if (boxService != null && SingBoxWrapper.isLoaded) {
+                    SingBoxWrapper.closeService(boxService!!)
+                    boxService = SingBoxWrapper.newService(currentConfig ?: "", interfaceDescriptor?.fd?.toLong() ?: -1L)
+                    if (boxService != null && boxService != 0L) {
+                        SingBoxWrapper.startService(boxService!!)
+                        Log.i(TAG, "Connections reset successfully")
+                        VpnServiceManager.sendLog("[NATIVE] Connections reset")
+                    }
                 }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to reset connections: ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to reset connections: ${e.message}")
-        }
+        }.start()
     }
 
     override fun onDestroy() {
