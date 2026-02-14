@@ -17,7 +17,7 @@
 - [ ] Auto-connect on app start
 - [ ] Auto-reconnect on network change
 - [ ] Clash API HTTP server (port 9090)
-- [ ] Speed test (real throughput measurement)
+- [x] Speed test (real throughput measurement)
 - [ ] Ping test for all servers
 - [ ] QR code scanner for config import
 - [ ] Config export (JSON/YAML)
