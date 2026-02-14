@@ -200,16 +200,38 @@ class MainActivity : FlutterActivity() {
             return
         }
 
-        val intent = Intent(this, SingBoxVpnService::class.java).apply {
-            action = SingBoxVpnService.ACTION_START
-            putExtra(SingBoxVpnService.EXTRA_CONFIG, config)
-            putExtra(SingBoxVpnService.EXTRA_SERVER_NAME, serverName ?: "Unknown")
+        if (config.isEmpty() || config.isBlank()) {
+            result.error("INVALID_CONFIG", "Config is empty", null)
+            return
         }
 
-        startService(intent)
-        result.success(true)
-        
-        Log.i(TAG, "Starting VPN service: $serverName")
+        try {
+            val configJson = org.json.JSONObject(config)
+            val hasOutbounds = configJson.has("outbounds") && configJson.getJSONArray("outbounds").length() > 0
+            val hasInbounds = configJson.has("inbounds") && configJson.getJSONArray("inbounds").length() > 0
+            
+            if (!hasOutbounds || !hasInbounds) {
+                Log.e(TAG, "Invalid config: missing outbounds or inbounds")
+                result.error("INVALID_CONFIG", "Config missing required fields", null)
+                return
+            }
+
+            val intent = Intent(this, SingBoxVpnService::class.java).apply {
+                action = SingBoxVpnService.ACTION_START
+                putExtra(SingBoxVpnService.EXTRA_CONFIG, config)
+                putExtra(SingBoxVpnService.EXTRA_SERVER_NAME, serverName ?: "Unknown")
+            }
+
+            startService(intent)
+            result.success(true)
+            
+            Log.i(TAG, "Starting VPN service: $serverName")
+            VpnServiceManager.sendLog("[INFO] Starting VPN: $serverName")
+        } catch (e: Exception) {
+            Log.e(TAG, "Config validation error", e)
+            result.error("INVALID_CONFIG", "Config is invalid: ${e.message}", null)
+            VpnServiceManager.sendLog("[ERROR] Config validation failed: ${e.message}")
+        }
     }
 
     private fun stopVpnService(result: MethodChannel.Result) {

@@ -59,16 +59,16 @@ class SingBoxVpnService : VpnService() {
         const val STATE_ERROR = 4
     }
 
-    init {
-        System.loadLibrary("box")
-    }
+    private var isLibraryLoaded = false
 
-    external fun setup(assetPath: String, tempPath: String, disableMemoryLimit: Boolean)
-    external fun newService(config: String, fd: Long): Long
-    external fun startService(ptr: Long)
-    external fun closeService(ptr: Long)
-    private external fun nativeProtect(socket: Int): Boolean
-    external fun getTrafficStats(): Array<Long>
+    init {
+        isLibraryLoaded = SingBoxWrapper.isLoaded
+        if (isLibraryLoaded) {
+            Log.i(TAG, "SingBox library loaded successfully")
+        } else {
+            Log.e(TAG, "SingBox library NOT loaded")
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -134,6 +134,17 @@ class SingBoxVpnService : VpnService() {
         startForeground(NOTIFICATION_ID, createNotification("Bağlanıyor..."))
 
         try {
+            if (!isLibraryLoaded) {
+                throw IllegalStateException("SingBox library not loaded")
+            }
+
+            if (config.isNullOrEmpty() || config.isBlank()) {
+                throw IllegalArgumentException("Config is empty")
+            }
+
+            Log.i(TAG, "Starting VPN with server: $serverName")
+            Log.d(TAG, "Config length: ${config.length} bytes")
+            
             val builder = Builder()
             builder.setSession("YusaBox VPN")
             builder.addAddress("10.0.0.2", 32)
@@ -143,16 +154,26 @@ class SingBoxVpnService : VpnService() {
             interfaceDescriptor = builder.establish()
 
             if (interfaceDescriptor != null) {
-                setup(filesDir.absolutePath, filesDir.absolutePath, false)
-                boxService = newService(config, interfaceDescriptor!!.fd.toLong())
-                
+                Log.i(TAG, "VPN interface established successfully")
+
+                SingBoxWrapper.setup(filesDir.absolutePath, filesDir.absolutePath, false)
+                Log.d(TAG, "SingBox setup completed")
+
+                boxService = SingBoxWrapper.newService(config, interfaceDescriptor!!.fd.toLong())
+                if (boxService == null || boxService == 0L) {
+                    throw IllegalStateException("Failed to create SingBox service")
+                }
+                Log.i(TAG, "SingBox service created: $boxService")
+
                 protectSocketConnections()
-                startService(boxService!!)
-                
+
+                SingBoxWrapper.startService(boxService!!)
+                Log.i(TAG, "SingBox service started")
+
                 connectionStartTime = System.currentTimeMillis()
                 VpnServiceManager.updateStatus(STATE_CONNECTED, "Bağlandı")
                 VpnServiceManager.sendLog("[NATIVE] Connected to: $serverName")
-                
+
                 VpnServiceManager.startTrafficMonitoring()
             } else {
                 Log.e(TAG, "Failed to establish VPN interface")
@@ -160,6 +181,18 @@ class SingBoxVpnService : VpnService() {
                 VpnServiceManager.sendLog("[NATIVE] ERROR: Cannot establish VPN interface")
                 attemptRetry()
             }
+        } catch (e: IllegalStateException) {
+            Log.e(TAG, "IllegalStateException: ${e.message}", e)
+            VpnServiceManager.updateStatus(STATE_ERROR, "Sistem hatası: ${e.message}")
+            VpnServiceManager.sendLog("[NATIVE] ERROR: ${e.message}")
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "IllegalArgumentException: ${e.message}", e)
+            VpnServiceManager.updateStatus(STATE_ERROR, "Yanlış config: ${e.message}")
+            VpnServiceManager.sendLog("[NATIVE] ERROR: ${e.message}")
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException: ${e.message}", e)
+            VpnServiceManager.updateStatus(STATE_ERROR, "İzin hatası: ${e.message}")
+            VpnServiceManager.sendLog("[NATIVE] ERROR: ${e.message}")
         } catch (e: Exception) {
             Log.e(TAG, "VPN connection error", e)
             VpnServiceManager.updateStatus(STATE_ERROR, "Hata: ${e.message}")
@@ -170,7 +203,7 @@ class SingBoxVpnService : VpnService() {
     
     private fun protectSocketConnections() {
         try {
-            val result = nativeProtect(0)
+            val result = SingBoxWrapper.nativeProtect(0)
             Log.i(TAG, "Socket protection enabled: $result")
             VpnServiceManager.sendLog("[NATIVE] Socket protection: $result")
         } catch (e: Exception) {
@@ -190,7 +223,7 @@ class SingBoxVpnService : VpnService() {
         VpnServiceManager.stopTrafficMonitoring()
 
         try {
-            boxService?.let { closeService(it) }
+            boxService?.let { SingBoxWrapper.closeService(it) }
             interfaceDescriptor?.close()
         } catch (e: Exception) {
             Log.e(TAG, "Error stopping VPN", e)

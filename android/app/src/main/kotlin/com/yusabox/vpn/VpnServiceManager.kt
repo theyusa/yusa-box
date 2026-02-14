@@ -109,15 +109,35 @@ object VpnServiceManager {
     }
     
     private fun getRealTrafficStats(): Map<String, Long> {
-        val uploadSpeed = lastUploadBytes + (Math.random() * 1024 * 100).toLong() - lastUploadBytes
-        val downloadSpeed = lastDownloadBytes + (Math.random() * 1024 * 500).toLong() - lastDownloadBytes
-        
-        return hashMapOf(
-            "upload" to lastUploadBytes + uploadSpeed,
-            "download" to lastDownloadBytes + downloadSpeed,
-            "uploadSpeed" to uploadSpeed,
-            "downloadSpeed" to downloadSpeed
-        )
+        if (!SingBoxWrapper.isLoaded) {
+            return hashMapOf(
+                "upload" to lastUploadBytes,
+                "download" to lastDownloadBytes,
+                "uploadSpeed" to 0L,
+                "downloadSpeed" to 0L
+            )
+        }
+
+        return try {
+            val stats = SingBoxWrapper.getTrafficStats()
+            val uploadSpeed = stats[0] - lastUploadBytes
+            val downloadSpeed = stats[1] - lastDownloadBytes
+
+            hashMapOf(
+                "upload" to stats[0],
+                "download" to stats[1],
+                "uploadSpeed" to uploadSpeed,
+                "downloadSpeed" to downloadSpeed
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get traffic stats: ${e.message}")
+            hashMapOf(
+                "upload" to lastUploadBytes,
+                "download" to lastDownloadBytes,
+                "uploadSpeed" to 0L,
+                "downloadSpeed" to 0L
+            )
+        }
     }
 
     fun sendLog(message: String) {
