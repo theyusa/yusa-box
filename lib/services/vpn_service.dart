@@ -21,10 +21,12 @@ class VpnService {
 
   Future<bool> startVpn(String config, {String? serverName}) async {
     try {
-      final result = await platform.invokeMethod('startVpn', {
-        'config': config,
-        if (serverName != null) ...{'serverName': serverName},
-      });
+      final result = await platform
+          .invokeMethod('startVpn', {
+            'config': config,
+            if (serverName != null) ...{'serverName': serverName},
+          })
+          .timeout(const Duration(seconds: 30));
       return result as bool;
     } catch (e) {
       return false;
@@ -39,7 +41,7 @@ class VpnService {
       return false;
     }
   }
-  
+
   Future<bool> reconnect() async {
     try {
       final result = await platform.invokeMethod('reconnect');
@@ -66,7 +68,7 @@ class VpnService {
       return 'Hata: ${e.toString()}';
     }
   }
-  
+
   Future<List<String>> getLogs() async {
     try {
       final result = await platform.invokeMethod('getLogs');

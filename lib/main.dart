@@ -232,6 +232,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   final _subscriptionService = SubscriptionService();
 
   bool _isConnected = false;
+  bool _isConnecting = false;
   int _currentIndex = 0;
   String _currentLanguage = AppStrings.tr;
   VpnSettings _vpnSettings = VpnSettings();
@@ -313,16 +314,23 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
       if (mounted) {
         setState(() {
-          _isConnected = state == 2;
-
-          if (state == 2) {
+          if (state == 1) {
+            _isConnecting = true;
+            _isConnected = false;
+          } else if (state == 2) {
+            _isConnecting = false;
+            _isConnected = true;
             _connectionStartTime = DateTime.now();
             _addLog('VPN Bağlandı');
             _fetchCurrentIp();
           } else if (state == 4) {
+            _isConnecting = false;
+            _isConnected = false;
             _addLog('VPN Hatası: $message');
             _connectionStartTime = null;
           } else if (state == 3) {
+            _isConnecting = false;
+            _isConnected = false;
             _addLog('Bağlantı kesildi');
             _connectionStartTime = null;
           }
@@ -650,6 +658,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               } else {
                 if (!mounted) return;
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+                setState(() {
+                  _isConnecting = true;
+                });
+
                 final hasPermission = await _vpnService.requestVpnPermission();
                 if (!hasPermission) {
                   if (mounted) {
@@ -657,6 +670,9 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                       const SnackBar(content: Text('VPN izni gerekli')),
                     );
                   }
+                  setState(() {
+                    _isConnecting = false;
+                  });
                   return;
                 }
 
@@ -666,15 +682,44 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   final config = _generateSingboxConfig(_selectedServer!);
                   _addLog('Bağlanıyor: $serverName');
 
-                  final success = await _vpnService.startVpn(
-                    config,
-                    serverName: serverName,
-                  );
-                  if (!success && mounted) {
-                    scaffoldMessenger.showSnackBar(
-                      const SnackBar(content: Text('VPN bağlantısı başarısız')),
-                    );
+                  try {
+                    final success = await _vpnService
+                        .startVpn(config, serverName: serverName)
+                        .timeout(
+                          const Duration(seconds: 30),
+                          onTimeout: () {
+                            setState(() {
+                              _isConnecting = false;
+                            });
+                            throw Exception('Bağlantı timeout oldu');
+                          },
+                        );
+
+                    setState(() {
+                      _isConnecting = false;
+                    });
+
+                    if (!success && mounted) {
+                      scaffoldMessenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('VPN bağlantısı başarısız'),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    setState(() {
+                      _isConnecting = false;
+                    });
+                    if (mounted) {
+                      scaffoldMessenger.showSnackBar(
+                        SnackBar(content: Text('Hata: ${e.toString()}')),
+                      );
+                    }
                   }
+                } else {
+                  setState(() {
+                    _isConnecting = false;
+                  });
                 }
               }
             },
@@ -793,6 +838,9 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         ? '${_selectedServer!.flag} ${_selectedServer!.name}'
         : 'Seçili Değil';
 
+    final isConnected = _isConnected;
+    final isConnecting = _isConnecting;
+
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -803,24 +851,36 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       children: [
         _buildDashboardCard(
           title: 'Durum',
-          value: _isConnected ? 'Bağlı' : 'Kesik',
-          icon: _isConnected ? Icons.check_circle : Icons.cancel,
-          color: _isConnected ? Colors.green : colorScheme.outline,
+          value: isConnected
+              ? 'Bağlı'
+              : isConnecting
+              ? 'Bağlanıyor...'
+              : 'Kesik',
+          icon: isConnected
+              ? Icons.check_circle
+              : isConnecting
+              ? Icons.sync
+              : Icons.cancel,
+          color: isConnected
+              ? Colors.green
+              : isConnecting
+              ? Colors.orange
+              : colorScheme.outline,
         ),
         _buildDashboardCard(
           title: 'Server',
           value: selectedServerName,
           icon: Icons.dns,
           color: colorScheme.primary,
-          isSmallText: true,
         ),
         _buildDashboardCard(
           title: 'IP Adresi',
-          value: _isConnected
+          value: isConnected
               ? _currentIp
               : _selectedServer?.address ?? '---.---.---.---',
           icon: Icons.public,
-          color: Colors.blue,
+          color: isConnected ? Colors.blue : colorScheme.outline,
+          isDisabled: !isConnected,
         ),
         _buildDashboardCard(
           title: 'Protokol',
@@ -838,8 +898,18 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     required IconData icon,
     required Color color,
     bool isSmallText = false,
+    bool isDisabled = false,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
+
+    final effectiveColor = isDisabled
+        ? colorScheme.outline.withValues(alpha: 0.5)
+        : color;
+
+    final effectiveIconColor = isDisabled
+        ? colorScheme.outline.withValues(alpha: 0.5)
+        : color;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -853,28 +923,31 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Icon(icon, color: color, size: 28),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: isSmallText ? 14 : 18,
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
+          Icon(icon, color: effectiveIconColor, size: 28),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: isSmallText ? 14 : 18,
+                    fontWeight: FontWeight.bold,
+                    color: effectiveColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colorScheme.onSurfaceVariant,
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

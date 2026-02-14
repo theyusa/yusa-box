@@ -24,6 +24,7 @@ object VpnServiceManager {
     private val maxLogSize = 100
     private var currentServerName: String? = null
     private var currentProtocol: String? = null
+    private val statusLock = Any()
 
     object StatusStreamHandler : EventChannel.StreamHandler {
         override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
@@ -36,19 +37,21 @@ object VpnServiceManager {
     }
 
     fun updateStatus(state: Int, message: String? = null) {
-        Handler(Looper.getMainLooper()).post {
-            val statusMap = hashMapOf<String, Any>(
-                "state" to state,
-            )
-            message?.let { statusMap["message"] = it }
+        synchronized(statusLock) {
+            Handler(Looper.getMainLooper()).post {
+                val statusMap = hashMapOf<String, Any>(
+                    "state" to state,
+                )
+                message?.let { statusMap["message"] = it }
 
-            if (state == 2) {
-                connectionStartTime = System.currentTimeMillis()
-            } else if (state == 0 || state == 3) {
-                connectionStartTime = 0
+                if (state == 2) {
+                    connectionStartTime = System.currentTimeMillis()
+                } else if (state == 0 || state == 3) {
+                    connectionStartTime = 0
+                }
+
+                eventSink?.success(statusMap)
             }
-
-            eventSink?.success(statusMap)
         }
     }
     

@@ -22,6 +22,13 @@ class SingBoxVpnService : VpnService() {
             super.onAvailable(network)
             Log.i(TAG, "Network available: $network")
             VpnServiceManager.sendLog("[NATIVE] Network available")
+            
+            if (VpnServiceManager.isConnected() && currentConfig != null) {
+                Log.i(TAG, "Attempting auto-reconnect after network restore")
+                VpnServiceManager.sendLog("[NATIVE] Auto-reconnecting after network restore...")
+                connectionRetryCount = 0
+                attemptRetry()
+            }
         }
 
         override fun onLost(network: Network) {
@@ -30,7 +37,10 @@ class SingBoxVpnService : VpnService() {
             VpnServiceManager.sendLog("[NATIVE] Network lost")
             
             if (VpnServiceManager.isConnected()) {
-                Log.i(TAG, "Will attempt reconnect on network restore")
+                Log.i(TAG, "VPN was connected, resetting connections...")
+                resetConnections()
+                Log.i(TAG, "VPN was connected, will attempt reconnect on network restore")
+                VpnServiceManager.updateStatus(3, "Network kayboldu, yeniden bağlanılıyor...")
             }
         }
     }
@@ -58,9 +68,14 @@ class SingBoxVpnService : VpnService() {
         const val STATE_CONNECTING = 1
         const val STATE_CONNECTED = 2
         const val STATE_ERROR = 4
+        
+        const val PRIVATE_VLAN4_CLIENT = "10.0.0.2"
+        const val PRIVATE_VLAN4_ROUTER = "10.0.0.1"
+        const val PRIVATE_VLAN6_CLIENT = "fdfe:dcba:9876::1"
     }
 
     private var isLibraryLoaded = false
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
 
     init {
         isLibraryLoaded = SingBoxWrapper.isLoaded
@@ -77,6 +92,7 @@ class SingBoxVpnService : VpnService() {
         VpnServiceManager.service = this
         
         registerNetworkCallback()
+        acquireWakeLock()
         
         Log.i(TAG, "SingBox VPN Service created")
         VpnServiceManager.sendLog("[NATIVE] Service initialized")
@@ -160,8 +176,18 @@ class SingBoxVpnService : VpnService() {
             
             val builder = Builder()
             builder.setSession("YusaBox VPN")
-            builder.addAddress("10.0.0.2", 32)
+            
+            builder.addAddress(PRIVATE_VLAN4_CLIENT, 30)
+            builder.addDnsServer(PRIVATE_VLAN4_ROUTER)
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                SagerNet?.underlyingNetwork?.let {
+                    builder.setUnderlyingNetworks(arrayOf(it))
+                }
+            }
+            
             builder.addRoute("0.0.0.0", 0)
+            builder.addRoute(PRIVATE_VLAN6_CLIENT, 128)
             builder.setMtu(1500)
             
             Log.i(TAG, "Establishing VPN interface...")
@@ -228,11 +254,12 @@ class SingBoxVpnService : VpnService() {
     
     private fun protectSocketConnections() {
         try {
-            val result = SingBoxWrapper.nativeProtect(0)
+            val result = SingBoxWrapper.nativeProtect(interfaceDescriptor?.fd ?: -1)
             Log.i(TAG, "Socket protection enabled: $result")
             VpnServiceManager.sendLog("[NATIVE] Socket protection: $result")
         } catch (e: Exception) {
             Log.w(TAG, "Socket protection failed: ${e.message}")
+            VpnServiceManager.sendLog("[WARN] Socket protection failed: ${e.message}")
         }
     }
 
@@ -328,6 +355,48 @@ class SingBoxVpnService : VpnService() {
         return builder.build()
     }
 
+    private fun acquireWakeLock() {
+        try {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            wakeLock = powerManager.newWakeLock(
+                android.os.PowerManager.PARTIAL_WAKE_LOCK,
+                "yusabox:vpn"
+            )
+            wakeLock?.acquire(10 * 60 * 1000L)
+            Log.i(TAG, "WakeLock acquired")
+            VpnServiceManager.sendLog("[NATIVE] WakeLock acquired")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to acquire WakeLock: ${e.message}")
+        }
+    }
+
+    private fun releaseWakeLock() {
+        try {
+            wakeLock?.release()
+            wakeLock = null
+            Log.i(TAG, "WakeLock released")
+            VpnServiceManager.sendLog("[NATIVE] WakeLock released")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to release WakeLock: ${e.message}")
+        }
+    }
+
+    private fun resetConnections() {
+        try {
+            if (boxService != null) {
+                SingBoxWrapper.closeService(boxService!!)
+                boxService = SingBoxWrapper.newService(currentConfig ?: "", interfaceDescriptor?.fd?.toLong() ?: -1L)
+                if (boxService != null && boxService != 0L) {
+                    SingBoxWrapper.startService(boxService!!)
+                    Log.i(TAG, "Connections reset successfully")
+                    VpnServiceManager.sendLog("[NATIVE] Connections reset")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to reset connections: ${e.message}")
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         
@@ -338,6 +407,7 @@ class SingBoxVpnService : VpnService() {
             Log.e(TAG, "Failed to unregister network callback: ${e.message}")
         }
         
+        releaseWakeLock()
         stopVpn()
         VpnServiceManager.service = null
         

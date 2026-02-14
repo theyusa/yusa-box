@@ -26,4 +26,22 @@ object SingBoxWrapper {
     external fun closeService(ptr: Long)
     external fun nativeProtect(socket: Int): Boolean
     external fun getTrafficStats(): Array<Long>
+    
+    fun resetAllConnections(reset: Boolean) {
+        if (isLoaded) {
+            try {
+                Libbox.resetAllConnections(reset)
+            } catch (e: Exception) {
+                Log.w("SingBoxWrapper", "Failed to reset connections: ${e.message}")
+            }
+        }
+    }
+}
+
+object Libbox {
+    external fun resetAllConnections(reset: Boolean)
+}
+
+object SagerNet {
+    var underlyingNetwork: android.net.Network? = null
 }
