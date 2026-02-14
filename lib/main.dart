@@ -288,21 +288,33 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   void _listenToVpnStatus() {
     _vpnService.statusStream.listen((status) {
       final state = status['state'] as int? ?? 0;
+      final message = status['message'] as String?;
+      final log = status['log'] as String?;
+      
       if (mounted) {
         setState(() {
           _isConnected = state == 2;
+          
           if (state == 2) {
             _connectionStartTime = DateTime.now();
             _addLog('VPN Bağlandı');
             _fetchCurrentIp();
           } else if (state == 4) {
-            final message = status['message'] as String? ?? 'Hata';
             _addLog('VPN Hatası: $message');
             _connectionStartTime = null;
-          } else {
+          } else if (state == 3) {
+            _addLog('Bağlantı kesildi');
             _connectionStartTime = null;
           }
         });
+        
+        if (log != null) {
+          _logs.insert(0, log);
+          if (_logs.length > 100) {
+            _logs.removeLast();
+          }
+          setState(() {});
+        }
       }
     });
   }
@@ -562,6 +574,15 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                     icon: const Icon(Icons.history_edu),
                     tooltip: 'Loglar',
                   ),
+                  if (_isConnected)
+                    IconButton.filledTonal(
+                      onPressed: () async {
+                        _addLog('Yeniden bağlanıyor...');
+                        await _vpnService.reconnect();
+                      },
+                      icon: const Icon(Icons.refresh),
+                      tooltip: 'Yeniden Bağlan',
+                    ),
                 ],
               ),
               const SizedBox(height: 20),
@@ -608,6 +629,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
                 if (_isConnected) {
                   await _vpnService.stopVpn();
+                  _addLog('Bağlantı kesildi');
                 } else {
                   if (!mounted) return;
                   final scaffoldMessenger = ScaffoldMessenger.of(context);
@@ -622,8 +644,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                   }
 
                   if (_selectedServer != null) {
+                    final serverName = '${_selectedServer!.flag} ${_selectedServer!.name}';
                     final config = _generateSingboxConfig(_selectedServer!);
-                    final success = await _vpnService.startVpn(config);
+                    _addLog('Bağlanıyor: $serverName');
+                    
+                    final success = await _vpnService.startVpn(config, serverName: serverName);
                     if (!success && mounted) {
                       scaffoldMessenger.showSnackBar(
                         const SnackBar(content: Text('VPN bağlantısı başarısız')),
@@ -631,6 +656,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                     }
                   }
                 }
+              }
             },
             backgroundColor: _isConnected ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
             foregroundColor: _isConnected ? Theme.of(context).colorScheme.onError : Theme.of(context).colorScheme.onPrimary,

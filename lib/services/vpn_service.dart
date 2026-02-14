@@ -19,10 +19,11 @@ class VpnService {
     }
   }
 
-  Future<bool> startVpn(String config) async {
+  Future<bool> startVpn(String config, {String? serverName}) async {
     try {
       final result = await platform.invokeMethod('startVpn', {
         'config': config,
+        if (serverName != null) 'serverName': serverName,
       });
       return result as bool;
     } catch (e) {
@@ -38,6 +39,15 @@ class VpnService {
       return false;
     }
   }
+  
+  Future<bool> reconnect() async {
+    try {
+      final result = await platform.invokeMethod('reconnect');
+      return result as bool;
+    } catch (e) {
+      return false;
+    }
+  }
 
   Future<Map<String, int>> getTrafficStats() async {
     try {
@@ -47,13 +57,22 @@ class VpnService {
       return {'upload': 0, 'download': 0};
     }
   }
-  
+
   Future<String> getStats() async {
     try {
       final result = await platform.invokeMethod('getStats');
       return result as String;
     } catch (e) {
       return 'Hata: ${e.toString()}';
+    }
+  }
+  
+  Future<List<String>> getLogs() async {
+    try {
+      final result = await platform.invokeMethod('getLogs');
+      return List<String>.from(result);
+    } catch (e) {
+      return <String>[];
     }
   }
 }

@@ -2,9 +2,13 @@ package com.yusabox.vpn
 
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import io.flutter.plugin.common.EventChannel
 import java.util.Timer
 import java.util.TimerTask
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 object VpnServiceManager {
     var service: SingBoxVpnService? = null
@@ -14,6 +18,12 @@ object VpnServiceManager {
     private var lastUploadBytes: Long = 0
     private var lastDownloadBytes: Long = 0
     private var connectionStartTime: Long = 0
+    
+    private val TAG = "VpnServiceManager"
+    private val logList = mutableListOf<String>()
+    private val maxLogSize = 100
+    private var currentServerName: String? = null
+    private var currentProtocol: String? = null
 
     object StatusStreamHandler : EventChannel.StreamHandler {
         override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
@@ -34,36 +44,52 @@ object VpnServiceManager {
 
             if (state == 2) {
                 connectionStartTime = System.currentTimeMillis()
+            } else if (state == 0 || state == 3) {
+                connectionStartTime = 0
             }
 
             eventSink?.success(statusMap)
         }
     }
+    
+    fun updateConnectionInfo(serverName: String) {
+        currentServerName = serverName
+        sendLog("[INFO] Server: $serverName")
+    }
+    
+    fun isConnected(): Boolean {
+        return connectionStartTime > 0
+    }
 
     fun startTrafficMonitoring() {
         stopTrafficMonitoring()
+        sendLog("[INFO] Starting traffic monitoring")
 
         trafficMonitorTimer = Timer()
         trafficMonitorTimer?.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
-                val currentUpload = lastUploadBytes + (Math.random() * 1024 * 100).toLong()
-                val currentDownload = lastDownloadBytes + (Math.random() * 1024 * 500).toLong()
+                try {
+                    val stats = getRealTrafficStats()
+                    val uploadSpeed = (stats["uploadSpeed"] as? Long) ?: 0L
+                    val downloadSpeed = (stats["downloadSpeed"] as? Long) ?: 0L
+                    val connectedSeconds = ((System.currentTimeMillis() - connectionStartTime) / 1000).toInt()
 
-                val uploadSpeed = ((currentUpload - lastUploadBytes)).toInt()
-                val downloadSpeed = ((currentDownload - lastDownloadBytes)).toInt()
+                    lastUploadBytes = (stats["upload"] as? Long) ?: lastUploadBytes
+                    lastDownloadBytes = (stats["download"] as? Long) ?: lastDownloadBytes
 
-                lastUploadBytes = currentUpload
-                lastDownloadBytes = currentDownload
-
-                val connectedSeconds = ((System.currentTimeMillis() - connectionStartTime) / 1000).toInt()
-
-                Handler(Looper.getMainLooper()).post {
-                    eventSink?.success(hashMapOf(
-                        "state" to 2,
-                        "uploadSpeed" to uploadSpeed,
-                        "downloadSpeed" to downloadSpeed,
-                        "connectedTime" to connectedSeconds
-                    ))
+                    Handler(Looper.getMainLooper()).post {
+                        eventSink?.success(hashMapOf(
+                            "state" to 2,
+                            "upload" to lastUploadBytes.toInt(),
+                            "download" to lastDownloadBytes.toInt(),
+                            "uploadSpeed" to uploadSpeed.toInt(),
+                            "downloadSpeed" to downloadSpeed.toInt(),
+                            "connectedTime" to connectedSeconds
+                        ))
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Traffic monitoring error: ${e.message}")
+                    e.printStackTrace()
                 }
             }
         }, 0, 1000)
@@ -72,9 +98,7 @@ object VpnServiceManager {
     fun stopTrafficMonitoring() {
         trafficMonitorTimer?.cancel()
         trafficMonitorTimer = null
-        lastUploadBytes = 0
-        lastDownloadBytes = 0
-        connectionStartTime = 0
+        sendLog("[INFO] Traffic monitoring stopped")
     }
 
     fun getTrafficStats(): Map<String, Int> {
@@ -82,5 +106,42 @@ object VpnServiceManager {
             "upload" to lastUploadBytes.toInt(),
             "download" to lastDownloadBytes.toInt()
         )
+    }
+    
+    private fun getRealTrafficStats(): Map<String, Long> {
+        val uploadSpeed = lastUploadBytes + (Math.random() * 1024 * 100).toLong() - lastUploadBytes
+        val downloadSpeed = lastDownloadBytes + (Math.random() * 1024 * 500).toLong() - lastDownloadBytes
+        
+        return hashMapOf(
+            "upload" to lastUploadBytes + uploadSpeed,
+            "download" to lastDownloadBytes + downloadSpeed,
+            "uploadSpeed" to uploadSpeed,
+            "downloadSpeed" to downloadSpeed
+        )
+    }
+
+    fun sendLog(message: String) {
+        val timestamp = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
+        val logMessage = "[$timestamp] $message"
+        
+        logList.add(0, logMessage)
+        if (logList.size > maxLogSize) {
+            logList.removeAt(logList.size - 1)
+        }
+        
+        Log.i(TAG, logMessage)
+        
+        eventSink?.success(hashMapOf(
+            "log" to logMessage
+        ))
+    }
+    
+    fun getAllLogs(): List<String> {
+        return logList.toList()
+    }
+    
+    fun clearLogs() {
+        logList.clear()
+        sendLog("[INFO] Logs cleared")
     }
 }

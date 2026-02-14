@@ -3,6 +3,7 @@ package com.yusabox.vpn
 import android.app.Activity
 import android.content.Intent
 import android.net.VpnService
+import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -16,6 +17,8 @@ class MainActivity : FlutterActivity() {
     private var methodChannel: MethodChannel? = null
     private var eventChannel: EventChannel? = null
     private var pendingResult: MethodChannel.Result? = null
+
+    private val TAG = "MainActivity"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -32,16 +35,23 @@ class MainActivity : FlutterActivity() {
                 }
                 "startVpn" -> {
                     val config = call.argument<String>("config")
-                    startVpnService(config, result)
+                    val serverName = call.argument<String>("serverName")
+                    startVpnService(config, serverName, result)
                 }
                 "stopVpn" -> {
                     stopVpnService(result)
+                }
+                "reconnect" -> {
+                    reconnectVpn(result)
                 }
                 "getTrafficStats" -> {
                     getTrafficStats(result)
                 }
                 "getStats" -> {
                     getTrafficStats(result)
+                }
+                "getLogs" -> {
+                    getLogs(result)
                 }
                 else -> {
                     result.notImplemented()
@@ -55,6 +65,9 @@ class MainActivity : FlutterActivity() {
         )
 
         eventChannel?.setStreamHandler(VpnServiceManager.StatusStreamHandler)
+        
+        Log.i(TAG, "Method channel configured: $METHOD_CHANNEL")
+        Log.i(TAG, "Event channel configured: $EVENT_CHANNEL")
     }
 
     private fun requestVpnPermission(result: MethodChannel.Result) {
@@ -62,6 +75,7 @@ class MainActivity : FlutterActivity() {
         if (intent != null) {
             pendingResult = result
             startActivityForResult(intent, VPN_REQUEST_CODE)
+            Log.i(TAG, "Requesting VPN permission...")
         } else {
             result.success(true)
         }
@@ -74,10 +88,18 @@ class MainActivity : FlutterActivity() {
             val granted = resultCode == Activity.RESULT_OK
             pendingResult?.success(granted)
             pendingResult = null
+            
+            Log.i(TAG, "VPN permission result: $granted")
+            
+            if (granted) {
+                VpnServiceManager.sendLog("[INFO] VPN permission granted")
+            } else {
+                VpnServiceManager.sendLog("[ERROR] VPN permission denied")
+            }
         }
     }
 
-    private fun startVpnService(config: String?, result: MethodChannel.Result) {
+    private fun startVpnService(config: String?, serverName: String?, result: MethodChannel.Result) {
         if (config == null) {
             result.error("INVALID_CONFIG", "Config is null", null)
             return
@@ -86,10 +108,13 @@ class MainActivity : FlutterActivity() {
         val intent = Intent(this, SingBoxVpnService::class.java).apply {
             action = SingBoxVpnService.ACTION_START
             putExtra(SingBoxVpnService.EXTRA_CONFIG, config)
+            putExtra(SingBoxVpnService.EXTRA_SERVER_NAME, serverName ?: "Unknown")
         }
 
         startService(intent)
         result.success(true)
+        
+        Log.i(TAG, "Starting VPN service: $serverName")
     }
 
     private fun stopVpnService(result: MethodChannel.Result) {
@@ -99,10 +124,29 @@ class MainActivity : FlutterActivity() {
 
         startService(intent)
         result.success(true)
+        
+        Log.i(TAG, "Stopping VPN service")
+    }
+    
+    private fun reconnectVpn(result: MethodChannel.Result) {
+        val intent = Intent(this, SingBoxVpnService::class.java).apply {
+            action = SingBoxVpnService.ACTION_RECONNECT
+        }
+
+        startService(intent)
+        result.success(true)
+        
+        Log.i(TAG, "Requesting VPN reconnect")
     }
 
     private fun getTrafficStats(result: MethodChannel.Result) {
         val stats = VpnServiceManager.getTrafficStats()
         result.success(stats)
+    }
+    
+    private fun getLogs(result: MethodChannel.Result) {
+        val logs = VpnServiceManager.getAllLogs()
+        result.success(logs)
+        Log.i(TAG, "Returning ${logs.size} log entries")
     }
 }
