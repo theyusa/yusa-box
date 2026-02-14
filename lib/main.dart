@@ -652,16 +652,15 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                     if (!success && mounted) {
                       scaffoldMessenger.showSnackBar(
                         const SnackBar(content: Text('VPN bağlantısı başarısız')),
-                      );
-                    }
-                  }
-                }
+    );
+  }
+}
               }
             },
             backgroundColor: _isConnected ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
             foregroundColor: _isConnected ? Theme.of(context).colorScheme.onError : Theme.of(context).colorScheme.onPrimary,
             elevation: 4,
-            child: Icon(_isConnected ? Icons.power_settings_new : Icons.bolt, size: 28),
+            child: Icon(_isConnected ? Icons.power_settings_new : Icons.bolt),
           ),
         ),
       ],
