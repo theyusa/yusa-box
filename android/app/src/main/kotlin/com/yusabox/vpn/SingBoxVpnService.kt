@@ -67,7 +67,7 @@ class SingBoxVpnService : VpnService() {
     external fun newService(config: String, fd: Long): Long
     external fun startService(ptr: Long)
     external fun closeService(ptr: Long)
-    external fun protect(socket: Int): Boolean
+    private external fun nativeProtect(socket: Int): Boolean
     external fun getTrafficStats(): Array<Long>
 
     override fun onCreate() {
@@ -170,7 +170,7 @@ class SingBoxVpnService : VpnService() {
     
     private fun protectSocketConnections() {
         try {
-            val result = protect(0)
+            val result = nativeProtect(0)
             Log.i(TAG, "Socket protection enabled: $result")
             VpnServiceManager.sendLog("[NATIVE] Socket protection: $result")
         } catch (e: Exception) {
