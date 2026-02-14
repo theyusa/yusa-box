@@ -7,13 +7,32 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.net.VpnService
 import android.net.ConnectivityManager
+import android.net.Network
 import android.content.Context
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.core.app.NotificationCompat
 
-class SingBoxVpnService : VpnService(), ConnectivityManager.NetworkCallback() {
+class SingBoxVpnService : VpnService() {
+
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            super.onAvailable(network)
+            Log.i(TAG, "Network available: $network")
+            VpnServiceManager.sendLog("[NATIVE] Network available")
+        }
+
+        override fun onLost(network: Network) {
+            super.onLost(network)
+            Log.i(TAG, "Network lost: $network")
+            VpnServiceManager.sendLog("[NATIVE] Network lost")
+            
+            if (VpnServiceManager.isConnected()) {
+                Log.i(TAG, "Will attempt reconnect on network restore")
+            }
+        }
+    }
 
     private var interfaceDescriptor: ParcelFileDescriptor? = null
     private var boxService: Long? = null
@@ -48,7 +67,7 @@ class SingBoxVpnService : VpnService(), ConnectivityManager.NetworkCallback() {
     external fun newService(config: String, fd: Long): Long
     external fun startService(ptr: Long)
     external fun closeService(ptr: Long)
-    external fun protect(socket: Int): Boolean
+    override fun protect(socket: Int): Boolean
     external fun getTrafficStats(): Array<Long>
 
     override fun onCreate() {
@@ -65,7 +84,7 @@ class SingBoxVpnService : VpnService(), ConnectivityManager.NetworkCallback() {
     private fun registerNetworkCallback() {
         val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         try {
-            connectivityManager.registerDefaultNetworkCallback(this)
+            connectivityManager.registerDefaultNetworkCallback(networkCallback)
             Log.i(TAG, "Network callback registered")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to register network callback: ${e.message}")
@@ -200,22 +219,6 @@ class SingBoxVpnService : VpnService(), ConnectivityManager.NetworkCallback() {
         }
     }
 
-    override fun onAvailable(network: android.net.Network) {
-        super.onAvailable(network)
-        Log.i(TAG, "Network available: ${network}")
-        VpnServiceManager.sendLog("[NATIVE] Network available")
-    }
-
-    override fun onLost(network: android.Network) {
-        super.onLost(network)
-        Log.i(TAG, "Network lost: ${network}")
-        VpnServiceManager.sendLog("[NATIVE] Network lost")
-        
-        if (VpnServiceManager.isConnected()) {
-            Log.i(TAG, "Will attempt reconnect on network restore")
-        }
-    }
-
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
@@ -255,7 +258,7 @@ class SingBoxVpnService : VpnService(), ConnectivityManager.NetworkCallback() {
         
         try {
             val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            connectivityManager.unregisterNetworkCallback(this)
+            connectivityManager.unregisterNetworkCallback(networkCallback)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to unregister network callback: ${e.message}")
         }
@@ -265,117 +268,5 @@ class SingBoxVpnService : VpnService(), ConnectivityManager.NetworkCallback() {
         
         Log.i(TAG, "SingBox VPN Service destroyed")
         VpnServiceManager.sendLog("[NATIVE] Service destroyed")
-    }
-}
-
-    init {
-        System.loadLibrary("box")
-    }
-
-    external fun setup(assetPath: String, tempPath: String, disableMemoryLimit: Boolean)
-    external fun newService(config: String, fd: Long): Long
-    external fun startService(ptr: Long)
-    external fun closeService(ptr: Long)
-
-    override fun onCreate() {
-        super.onCreate()
-        createNotificationChannel()
-        VpnServiceManager.service = this
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_START -> {
-                val config = intent.getStringExtra(EXTRA_CONFIG)
-                if (config != null) {
-                    startVpn(config)
-                }
-            }
-            ACTION_STOP -> {
-                stopVpn()
-            }
-        }
-        return START_NOT_STICKY
-    }
-
-    private fun startVpn(config: String) {
-        VpnServiceManager.updateStatus(1, "Bağlanıyor...")
-
-        startForeground(1, createNotification())
-
-        try {
-            val builder = Builder()
-            builder.setSession("YusaBox VPN")
-            builder.addAddress("10.0.0.2", 32)
-            builder.addRoute("0.0.0.0", 0)
-            builder.setMtu(1500)
-
-            interfaceDescriptor = builder.establish()
-
-            if (interfaceDescriptor != null) {
-                setup(filesDir.absolutePath, filesDir.absolutePath, false)
-                boxService = newService(config, interfaceDescriptor!!.fd.toLong())
-                startService(boxService!!)
-
-                VpnServiceManager.updateStatus(2, "Bağlandı")
-                VpnServiceManager.startTrafficMonitoring()
-            } else {
-                VpnServiceManager.updateStatus(4, "VPN interface oluşturulamadı")
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            VpnServiceManager.updateStatus(4, "Hata: ${e.message}")
-            stopVpn()
-        }
-    }
-
-    private fun stopVpn() {
-        VpnServiceManager.updateStatus(3, "Bağlantı kesiliyor...")
-        VpnServiceManager.stopTrafficMonitoring()
-
-        try {
-            boxService?.let { closeService(it) }
-            interfaceDescriptor?.close()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        } finally {
-            interfaceDescriptor = null
-            boxService = null
-            stopForeground(true)
-            stopSelf()
-        }
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val serviceChannel = NotificationChannel(
-                CHANNEL_ID,
-                "VPN Service Channel",
-                NotificationManager.IMPORTANCE_DEFAULT
-            )
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(serviceChannel)
-        }
-    }
-
-    private fun createNotification(): Notification {
-        val notificationIntent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, notificationIntent,
-            PendingIntent.FLAG_IMMUTABLE
-        )
-
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("YusaBox VPN")
-            .setContentText("VPN servisi çalışıyor...")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentIntent(pendingIntent)
-            .build()
-    }
-
-    override fun onDestroy() {
-        stopVpn()
-        VpnServiceManager.service = null
-        super.onDestroy()
     }
 }
