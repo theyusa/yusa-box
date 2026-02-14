@@ -1,5 +1,6 @@
 # Agent metadata
 .agent/
+.agents/
 
 # Flutter
 .DS_Store
