@@ -17,7 +17,6 @@ import 'services/vpn_service.dart';
 import 'services/subscription_service.dart';
 import 'services/server_service.dart';
 import 'services/speed_test_service.dart';
-import 'services/ping_service.dart';
 
 enum SortOption { name, ping }
 
@@ -251,9 +250,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   // State: Speed Test
   bool _isSpeedTestRunning = false;
   SpeedTestResult? _speedTestResult;
-
-  // State: Ping
-  final Map<String, PingResult> _pingResults = {};
+  String _speedTestStatus = '';
 
   // Logs
   final List<String> _logs = [
@@ -290,8 +287,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     _loadSubscriptions();
     _listenToVpnStatus();
     _listenToSpeedTestStatus();
-    _listenToPingStatus();
-    _pingServersOnLoad();
   }
 
   @override
@@ -340,10 +335,12 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
           (status['downloadSpeed'] as num?)?.toDouble() ?? 0.0;
       final uploadSpeed = (status['uploadSpeed'] as num?)?.toDouble() ?? 0.0;
       final ping = status['ping'] as int? ?? 0;
+      final testStatus = status['status'] as String? ?? '';
       final complete = status['complete'] as bool? ?? false;
 
       if (mounted) {
         setState(() {
+          _speedTestStatus = testStatus;
           if (complete) {
             _speedTestResult = SpeedTestResult(
               uploadSpeed: uploadSpeed,
@@ -359,33 +356,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         });
       }
     });
-  }
-
-  void _listenToPingStatus() {
-    PingService().pingStream.listen((pingResult) {
-      final serverId = pingResult.serverId;
-
-      if (mounted) {
-        setState(() {
-          _pingResults[serverId] = pingResult;
-        });
-      }
-    });
-  }
-
-  Future<void> _pingServersOnLoad() async {
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    final box = ServerService.serversBox;
-    final servers = box.values.toList();
-
-    final serversToPing = servers.take(10).map((server) {
-      return {'id': server.id, 'address': server.address, 'port': server.port};
-    }).toList();
-
-    if (serversToPing.isNotEmpty) {
-      PingService().pingServers(serversToPing);
-    }
   }
 
   Future<void> _fetchCurrentIp() async {
@@ -506,247 +476,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         '[${DateTime.now().hour}:${DateTime.now().minute}:${DateTime.now().second}] $message',
       );
     });
-  }
-
-  Widget _buildVPNView() {
-    return Stack(
-      children: [
-        SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 80),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Dashboard',
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        _isConnected
-                            ? 'Güvenli Bağlantı Aktif'
-                            : 'Bağlantı Yok',
-                        style: TextStyle(
-                          color: _isConnected
-                              ? Colors.green
-                              : Theme.of(context).colorScheme.error,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  IconButton.filledTonal(
-                    onPressed: _showLogPanel,
-                    icon: const Icon(Icons.history_edu),
-                    tooltip: 'Loglar',
-                  ),
-                  if (_isConnected)
-                    IconButton.filledTonal(
-                      onPressed: () async {
-                        _addLog('Yeniden bağlanıyor...');
-                        await _vpnService.reconnect();
-                      },
-                      icon: const Icon(Icons.refresh),
-                      tooltip: 'Yeniden Bağlan',
-                    ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              _buildDashboardGrid(),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainer,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.outlineVariant.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildSessionStat(
-                      'Oturum Süresi',
-                      _isConnected ? _getSessionDuration() : '--:--',
-                    ),
-                    Container(
-                      height: 40,
-                      width: 1,
-                      color: Theme.of(context).colorScheme.outlineVariant,
-                    ),
-                    _buildSessionStat(
-                      'Veri Kullanımı',
-                      _isConnected ? 'Hesaplanıyor...' : '--',
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        Positioned(
-          bottom: 16,
-          right: 16,
-          child: FloatingActionButton(
-            onPressed: () async {
-              if (_selectedServer == null && !_isConnected) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Lütfen önce bir server seçin!'),
-                  ),
-                );
-                return;
-              }
-
-              if (_isConnected) {
-                await _vpnService.stopVpn();
-                _addLog('Bağlantı kesildi');
-              } else {
-                if (!mounted) return;
-                final scaffoldMessenger = ScaffoldMessenger.of(context);
-                final hasPermission = await _vpnService.requestVpnPermission();
-                if (!hasPermission) {
-                  if (mounted) {
-                    scaffoldMessenger.showSnackBar(
-                      const SnackBar(content: Text('VPN izni gerekli')),
-                    );
-                  }
-                  return;
-                }
-
-                if (_selectedServer != null) {
-                  final serverName =
-                      '${_selectedServer!.flag} ${_selectedServer!.name}';
-                  final config = _generateSingboxConfig(_selectedServer!);
-                  _addLog('Bağlanıyor: $serverName');
-
-                  final success = await _vpnService.startVpn(
-                    config,
-                    serverName: serverName,
-                  );
-                  if (!success && mounted) {
-                    scaffoldMessenger.showSnackBar(
-                      const SnackBar(content: Text('VPN bağlantısı başarısız')),
-                    );
-                  }
-                }
-              }
-            },
-            backgroundColor: _isConnected
-                ? Theme.of(context).colorScheme.error
-                : Theme.of(context).colorScheme.primary,
-            foregroundColor: _isConnected
-                ? Theme.of(context).colorScheme.onError
-                : Theme.of(context).colorScheme.onPrimary,
-            elevation: 4,
-            child: Icon(_isConnected ? Icons.power_settings_new : Icons.bolt),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSessionStat(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            fontFamily: 'monospace',
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _getSessionDuration() {
-    if (_connectionStartTime == null) return '--:--';
-    final duration = DateTime.now().difference(_connectionStartTime!);
-    final hours = duration.inHours.toString().padLeft(2, '0');
-    final minutes = (duration.inMinutes % 60).toString().padLeft(2, '0');
-    final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
-    return '$hours:$minutes:$seconds';
-  }
-
-  Widget _buildPingIndicator(BuildContext context, VpnServer server) {
-    final pingResult = _pingResults[server.id];
-    final isLoading = pingResult?.isLoading ?? false;
-    final latencyMs = pingResult?.latencyMs;
-    final isSuccess = pingResult?.isSuccess ?? false;
-    final isFailed = pingResult?.isFailed ?? false;
-    final isTimeout = pingResult?.isTimeout ?? false;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    String pingText;
-    Color pingColor;
-
-    if (isLoading) {
-      pingText = '...';
-      pingColor = colorScheme.outline;
-    } else if (isTimeout || isFailed) {
-      pingText = 'Zaman Aşımı';
-      pingColor = colorScheme.error;
-    } else if (isSuccess && latencyMs != null) {
-      pingText = '${latencyMs}ms';
-      // ignore: unnecessary_non_null_assertion
-      final latency = latencyMs!;
-      if (latency < 100) {
-        pingColor = Colors.green;
-      } else if (latency < 200) {
-        pingColor = Colors.orange;
-      } else {
-        pingColor = Colors.red;
-      }
-    } else {
-      pingText = server.ping;
-      pingColor = colorScheme.onSurfaceVariant.withValues(alpha: 0.8);
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '${server.city} • ',
-          style: TextStyle(
-            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
-            fontSize: 12,
-          ),
-        ),
-        if (isLoading)
-          const SizedBox(
-            width: 10,
-            height: 10,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          )
-        else
-          Text(
-            pingText,
-            style: TextStyle(
-              color: pingColor,
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-            ),
-          ),
-      ],
-    );
   }
 
   Widget _buildDashboardGrid() {
@@ -975,18 +704,14 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                                if (_speedTestResult != null &&
-                                    _speedTestResult!.serverName == server.name)
-                                  Text(
-                                    '⚡ ${_speedTestResult!.downloadSpeedFormatted} ↓ / ${_speedTestResult!.uploadSpeedFormatted} ↑ (Ping: ${_speedTestResult!.ping}ms)',
-                                    style: TextStyle(
-                                      color: Colors.blue,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 12,
-                                    ),
-                                  )
-                                else
-                                  _buildPingIndicator(context, server),
+                                Text(
+                                  '${server.city} • ${server.ping}',
+                                  style: TextStyle(
+                                    color: colorScheme.onSurfaceVariant
+                                        .withValues(alpha: 0.8),
+                                    fontSize: 12,
+                                  ),
+                                ),
                                 Text(
                                   '${server.protocol} • ${server.transport.toUpperCase()}${server.security == 'tls' ? ' • TLS' : ''}',
                                   style: TextStyle(
@@ -1022,8 +747,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                                   _deleteServer(parentSub, server);
                                 } else if (value == 'copy') {
                                   _copyServerUrl(server);
-                                } else if (value == 'speedtest') {
-                                  _runSpeedTest(server);
                                 }
                               },
                               itemBuilder: (BuildContext context) =>
@@ -1035,26 +758,6 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                                           Icon(Icons.edit, size: 20),
                                           SizedBox(width: 8),
                                           Text('Düzenle'),
-                                        ],
-                                      ),
-                                    ),
-                                    PopupMenuItem<String>(
-                                      value: 'speedtest',
-                                      child: Row(
-                                        children: [
-                                          const Icon(Icons.speed, size: 20),
-                                          const SizedBox(width: 8),
-                                          Text('Speed Test'),
-                                          if (_isSpeedTestRunning)
-                                            const SizedBox(width: 8),
-                                          if (_isSpeedTestRunning)
-                                            const SizedBox(
-                                              width: 12,
-                                              height: 12,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                              ),
-                                            ),
                                         ],
                                       ),
                                     ),
@@ -1514,9 +1217,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       final params = <String, dynamic>{};
 
       if (data['security'] != null) params['security'] = data['security'];
-      if (data['type'] != null) {
+      if (data['type'] != null)
         params['type'] = data['transport'] ?? data['network'];
-      }
       if (data['path'] != null) params['path'] = data['path'];
       if (data['host'] != null) params['host'] = data['host'];
       if (data['sni'] != null) params['sni'] = data['sni'];
@@ -1525,9 +1227,8 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       if (data['fingerprint'] != null) params['fp'] = data['fingerprint'];
       if (data['pbk'] != null) params['pbk'] = data['pbk'];
       if (data['sid'] != null) params['sid'] = data['sid'];
-      if (data['serviceName'] != null) {
+      if (data['serviceName'] != null)
         params['serviceName'] = data['serviceName'];
-      }
 
       final queryString = params.entries
           .map(
@@ -2384,6 +2085,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
       await SpeedTestService().stopSpeedTest();
       setState(() {
         _isSpeedTestRunning = false;
+        _speedTestStatus = '';
       });
       return;
     }
@@ -2391,6 +2093,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     setState(() {
       _isSpeedTestRunning = true;
       _speedTestResult = null;
+      _speedTestStatus = 'Başlatılıyor...';
     });
 
     _addLog('Speed test başlatılıyor: ${server.name}');
@@ -2403,6 +2106,7 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     if (!success && mounted) {
       setState(() {
         _isSpeedTestRunning = false;
+        _speedTestStatus = 'Hata: Başlatılamadı';
       });
       ScaffoldMessenger.of(
         context,

@@ -14,12 +14,16 @@ class MainActivity : FlutterActivity() {
     private val EVENT_CHANNEL = "com.yusabox.vpn/status"
     private val SPEED_TEST_METHOD_CHANNEL = "com.yusabox.vpn/speedtest"
     private val SPEED_TEST_EVENT_CHANNEL = "com.yusabox.vpn/speedtest/status"
+    private val PING_METHOD_CHANNEL = "com.yusabox.vpn/ping"
+    private val PING_EVENT_CHANNEL = "com.yusabox.vpn/ping/status"
     private val VPN_REQUEST_CODE = 100
 
     private var methodChannel: MethodChannel? = null
     private var eventChannel: EventChannel? = null
     private var speedTestMethodChannel: MethodChannel? = null
     private var speedTestEventChannel: EventChannel? = null
+    private var pingMethodChannel: MethodChannel? = null
+    private var pingEventChannel: EventChannel? = null
     private var pendingResult: MethodChannel.Result? = null
 
     private val TAG = "MainActivity"
@@ -56,6 +60,48 @@ class MainActivity : FlutterActivity() {
                 }
                 "getLogs" -> {
                     getLogs(result)
+                }
+                "pingServer" -> {
+                    val serverId = call.argument<String>("serverId")
+                    val address = call.argument<String>("address")
+                    val port = call.argument<Int>("port")
+                    if (serverId != null && address != null && port != null) {
+                        PingServiceManager.pingServer(serverId, address, port)
+                        result.success(true)
+                    } else {
+                        result.error("INVALID_PARAMS", "Missing ping parameters", null)
+                    }
+                }
+                "pingServers" -> {
+                    val servers = call.argument<List<Map<String, Any>>>("servers")
+                    if (servers != null) {
+                        PingServiceManager.pingServers(servers)
+                        result.success(true)
+                    } else {
+                        result.error("INVALID_PARAMS", "Missing servers list", null)
+                    }
+                }
+                "getPingResult" -> {
+                    val serverId = call.argument<String>("serverId")
+                    if (serverId != null) {
+                        val pingResult = PingServiceManager.getPingResult(serverId)
+                        if (pingResult != null) {
+                            result.success(mapOf(
+                                "serverId" to pingResult.serverId,
+                                "latencyMs" to pingResult.latencyMs,
+                                "success" to pingResult.success,
+                                "isLoading" to false
+                            ))
+                        } else {
+                            result.success(null)
+                        }
+                    } else {
+                        result.error("INVALID_PARAMS", "Missing server ID", null)
+                    }
+                }
+                "clearPingResults" -> {
+                    PingServiceManager.clearPingResults()
+                    result.success(true)
                 }
                 else -> {
                     result.notImplemented()
@@ -104,10 +150,19 @@ class MainActivity : FlutterActivity() {
 
         speedTestEventChannel?.setStreamHandler(SpeedTestServiceManager.StatusStreamHandler)
         
+        pingEventChannel = EventChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            PING_EVENT_CHANNEL
+        )
+
+        pingEventChannel?.setStreamHandler(PingServiceManager.StatusStreamHandler)
+        
         Log.i(TAG, "Method channel configured: $METHOD_CHANNEL")
         Log.i(TAG, "Event channel configured: $EVENT_CHANNEL")
         Log.i(TAG, "Speed test method channel configured: $SPEED_TEST_METHOD_CHANNEL")
         Log.i(TAG, "Speed test event channel configured: $SPEED_TEST_EVENT_CHANNEL")
+        Log.i(TAG, "Ping method channel configured: $PING_METHOD_CHANNEL")
+        Log.i(TAG, "Ping event channel configured: $PING_EVENT_CHANNEL")
     }
 
     private fun requestVpnPermission(result: MethodChannel.Result) {
