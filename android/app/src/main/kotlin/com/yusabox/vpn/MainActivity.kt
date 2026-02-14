@@ -3,11 +3,14 @@ package com.yusabox.vpn
 import android.app.Activity
 import android.content.Intent
 import android.net.VpnService
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.EventChannel
+import java.lang.Thread.UncaughtExceptionHandler
 
 class MainActivity : FlutterActivity() {
     private val METHOD_CHANNEL = "com.yusabox.vpn/service"
@@ -27,9 +30,19 @@ class MainActivity : FlutterActivity() {
     private var pendingResult: MethodChannel.Result? = null
 
     private val TAG = "MainActivity"
+    private val crashHandler = UncaughtExceptionHandler { thread, throwable ->
+        Log.e(TAG, "Uncaught exception in thread ${thread.name}", throwable)
+        VpnServiceManager.sendLog("[FATAL] Crash detected: ${throwable.message}")
+        
+        Handler(Looper.getMainLooper()).post {
+            VpnServiceManager.updateStatus(4, "Uygulama çöktü, lütfen yeniden başlatın")
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        
+        Thread.setDefaultUncaughtExceptionHandler(crashHandler)
 
         methodChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
@@ -208,9 +221,10 @@ class MainActivity : FlutterActivity() {
         }
 
         try {
-            val configJson = org.json.JSONObject(config)
+            var configJson = org.json.JSONObject(config)
             val hasOutbounds = configJson.has("outbounds") && configJson.getJSONArray("outbounds").length() > 0
             val hasInbounds = configJson.has("inbounds") && configJson.getJSONArray("inbounds").length() > 0
+            val hasDns = configJson.has("dns")
             
             if (!hasOutbounds) {
                 Log.e(TAG, "Invalid config: missing outbounds")
@@ -220,16 +234,50 @@ class MainActivity : FlutterActivity() {
             }
 
             if (!hasInbounds) {
-                Log.w(TAG, "Config missing inbounds, using defaults")
+                Log.w(TAG, "Config missing inbounds, adding default TUN inbound")
+                VpnServiceManager.sendLog("[WARN] Adding default TUN inbound")
+                
+                val defaultInbound = org.json.JSONObject().apply {
+                    put("type", "tun")
+                    put("tag", "tun-in")
+                    put("auto_route", true)
+                    put("strict_route", false)
+                    put("sniff", true)
+                    put("sniff_override_destination", false)
+                }
+                
+                val inbounds = org.json.JSONArray()
+                inbounds.put(defaultInbound)
+                configJson.put("inbounds", inbounds)
             }
+            
+            if (!hasDns) {
+                Log.w(TAG, "Config missing DNS, adding default DNS")
+                VpnServiceManager.sendLog("[WARN] Adding default DNS")
+                
+                val defaultDns = org.json.JSONObject().apply {
+                    put("servers", org.json.JSONArray().apply {
+                        put(org.json.JSONObject().apply {
+                            put("tag", "dns-remote")
+                            put("address_resolver", "https://dns.google/dns-query")
+                            put("strategy", "prefer_ipv4")
+                        })
+                    })
+                    put("final", "dns-remote")
+                    put("strategy", "prefer_ipv4")
+                }
+                configJson.put("dns", defaultDns)
+            }
+
+            val finalConfig = configJson.toString()
 
             val intent = Intent(this, SingBoxVpnService::class.java).apply {
                 action = SingBoxVpnService.ACTION_START
-                putExtra(SingBoxVpnService.EXTRA_CONFIG, config)
+                putExtra(SingBoxVpnService.EXTRA_CONFIG, finalConfig)
                 putExtra(SingBoxVpnService.EXTRA_SERVER_NAME, serverName ?: "Unknown")
             }
 
-            Log.i(TAG, "Starting VPN service with config length: ${config.length}")
+            Log.i(TAG, "Starting VPN service with config length: ${finalConfig.length}")
             startService(intent)
             result.success(true)
             
