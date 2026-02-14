@@ -255,6 +255,9 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   // State: Ping
   final Map<String, PingResult> _pingResults = {};
 
+  // State: Loading
+  bool _isSubscriptionSaving = false;
+
   // Logs
   final List<String> _logs = [
     '[INFO] App started',
@@ -386,6 +389,10 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     if (serversToPing.isNotEmpty) {
       PingService().pingServers(serversToPing);
     }
+  }
+
+  Future<void> _pingSingleServer(VpnServer server) async {
+    await PingService().pingServer(server.id, server.address, server.port);
   }
 
   Future<void> _fetchCurrentIp() async {
@@ -1022,12 +1029,24 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                                   _deleteServer(parentSub, server);
                                 } else if (value == 'copy') {
                                   _copyServerUrl(server);
+                                } else if (value == 'ping') {
+                                  _pingSingleServer(server);
                                 } else if (value == 'speedtest') {
                                   _runSpeedTest(server);
                                 }
                               },
                               itemBuilder: (BuildContext context) =>
                                   <PopupMenuEntry<String>>[
+                                    const PopupMenuItem<String>(
+                                      value: 'ping',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.network_check, size: 20),
+                                          SizedBox(width: 8),
+                                          Text('Ping Test'),
+                                        ],
+                                      ),
+                                    ),
                                     const PopupMenuItem<String>(
                                       value: 'edit',
                                       child: Row(
@@ -1318,11 +1337,25 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                 ),
                 IconButton(
                   tooltip: 'Test Et',
-                  icon: const Icon(Icons.network_check), // Ping/Test icon
-                  onPressed: () {
+                  icon: const Icon(Icons.network_check),
+                  onPressed: () async {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Ping testi başlatıldı...')),
+                      const SnackBar(
+                        content: Text('Ping testi başlatılıyor...'),
+                      ),
                     );
+
+                    final serversToPing = sub.servers.take(10).map((server) {
+                      return {
+                        'id': server.id,
+                        'address': server.address,
+                        'port': server.port,
+                      };
+                    }).toList();
+
+                    if (serversToPing.isNotEmpty) {
+                      await PingService().pingServers(serversToPing);
+                    }
                   },
                 ),
                 // More Actions: Edit, Delete
@@ -1379,92 +1412,125 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colorScheme.surfaceContainer,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Row(
-          children: [
-            Icon(
-              isEditing ? Icons.edit : Icons.add_circle_outline,
-              color: colorScheme.primary,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              isEditing
-                  ? AppStrings.get('edit')
-                  : AppStrings.get('add_subscription'),
-              style: TextStyle(color: colorScheme.onSurface),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: InputDecoration(
-                labelText: AppStrings.get('subscription_name'),
-                prefixIcon: const Icon(Icons.bookmark),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: urlController,
-              decoration: InputDecoration(
-                labelText: AppStrings.get('subscription_url'),
-                prefixIcon: const Icon(Icons.link),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(AppStrings.get('cancel')),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: colorScheme.surfaceContainer,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              final navigator = Navigator.of(context);
-              final name = nameController.text.trim();
-              final url = urlController.text.trim();
-              if (name.isNotEmpty && url.isNotEmpty) {
-                if (isEditing) {
-                  final index = _subscriptions.indexWhere(
-                    (s) => s.id == sub.id,
-                  );
-                  if (index != -1) {
-                    final updatedSub = VPNSubscription(
-                      id: sub.id,
-                      name: name,
-                      url: url,
-                      servers: sub.servers,
-                    );
-                    await ServerService.updateSubscription(index, updatedSub);
-                    await _loadSubscriptions();
+          title: Row(
+            children: [
+              Icon(
+                isEditing ? Icons.edit : Icons.add_circle_outline,
+                color: colorScheme.primary,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                isEditing
+                    ? AppStrings.get('edit')
+                    : AppStrings.get('add_subscription'),
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  labelText: AppStrings.get('subscription_name'),
+                  prefixIcon: const Icon(Icons.bookmark),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: urlController,
+                decoration: InputDecoration(
+                  labelText: AppStrings.get('subscription_url'),
+                  prefixIcon: const Icon(Icons.link),
+                ),
+              ),
+              if (_isSubscriptionSaving) const SizedBox(height: 16),
+              if (_isSubscriptionSaving)
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text('Abonelik yükleniyor...'),
+                  ],
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: _isSubscriptionSaving
+                  ? null
+                  : () => Navigator.pop(context),
+              child: Text(AppStrings.get('cancel')),
+            ),
+            ElevatedButton(
+              onPressed: _isSubscriptionSaving
+                  ? null
+                  : () async {
+                      final navigator = Navigator.of(context);
+                      final name = nameController.text.trim();
+                      final url = urlController.text.trim();
+                      if (name.isNotEmpty && url.isNotEmpty) {
+                        setState(() => _isSubscriptionSaving = true);
+                        setDialogState(() => _isSubscriptionSaving = true);
 
-                    if (url != sub.url) {
-                      await _refreshSubscription(updatedSub);
-                    }
-                  }
-                } else {
-                  final newSub = VPNSubscription(
-                    id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    name: name,
-                    url: url,
-                    servers: [],
-                  );
-                  await ServerService.addSubscription(newSub);
-                  await _refreshSubscription(newSub);
-                  await _loadSubscriptions();
-                }
-              }
-              if (mounted) {
-                navigator.pop();
-              }
-            },
-            child: Text(AppStrings.get('save')),
-          ),
-        ],
+                        if (isEditing) {
+                          final index = _subscriptions.indexWhere(
+                            (s) => s.id == sub.id,
+                          );
+                          if (index != -1) {
+                            final updatedSub = VPNSubscription(
+                              id: sub.id,
+                              name: name,
+                              url: url,
+                              servers: sub.servers,
+                            );
+                            await ServerService.updateSubscription(
+                              index,
+                              updatedSub,
+                            );
+                            await _loadSubscriptions();
+
+                            if (url != sub.url) {
+                              await _refreshSubscription(updatedSub);
+                            }
+                          }
+                        } else {
+                          final newSub = VPNSubscription(
+                            id: DateTime.now().millisecondsSinceEpoch
+                                .toString(),
+                            name: name,
+                            url: url,
+                            servers: [],
+                          );
+                          await ServerService.addSubscription(newSub);
+                          await _refreshSubscription(newSub);
+                          await _loadSubscriptions();
+                        }
+
+                        setState(() => _isSubscriptionSaving = false);
+                        if (mounted) {
+                          navigator.pop();
+                        }
+                      }
+                    },
+              child: Text(AppStrings.get('save')),
+            ),
+          ],
+        ),
       ),
     );
   }
