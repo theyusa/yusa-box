@@ -23,7 +23,7 @@ class VpnService {
     try {
       final result = await platform.invokeMethod('startVpn', {
         'config': config,
-        if (serverName != null) 'serverName': serverName,
+        if (serverName != null) ...{'serverName': serverName},
       });
       return result as bool;
     } catch (e) {
