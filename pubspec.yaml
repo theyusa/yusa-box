@@ -39,4 +39,3 @@ flutter_launcher_icons:
   android: true
   ios: false
   image_path: "Yusa-Box.png"
-  adaptive_icon_foreground: "Yusa-Box.png"
