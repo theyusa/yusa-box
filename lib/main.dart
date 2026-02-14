@@ -261,8 +261,11 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   // Logs
   final List<String> _logs = [
     '[INFO] App started',
-    '[INFO] V2Ray service initialized',
+    '[INFO] SingBox service initialized',
   ];
+  final ScrollController _logScrollController = ScrollController();
+  bool _autoScrollLogs = true;
+  String _logFilter = 'All';
 
   static const List<Color> _seedColors = [
     Colors.red,
@@ -531,11 +534,15 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
   }
 
   void _addLog(String message) {
+    final logMessage = '[INFO] $message';
     setState(() {
       _logs.insert(
         0,
-        '[${DateTime.now().hour}:${DateTime.now().minute}:${DateTime.now().second}] $message',
+        '[${DateTime.now().hour}:${DateTime.now().minute}:${DateTime.now().second}] $logMessage',
       );
+      if (_autoScrollLogs) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+      }
     });
   }
 
@@ -2409,6 +2416,26 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                     Row(
                       children: [
                         IconButton(
+                          icon: const Icon(Icons.filter_list),
+                          onPressed: () => _showLogFilterDialog(),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            _autoScrollLogs
+                                ? Icons.auto_fix_high
+                                : Icons.vertical_align_bottom,
+                          ),
+                          onPressed: () {
+                            setState(() => _autoScrollLogs = !_autoScrollLogs);
+                            if (_autoScrollLogs) {
+                              _scrollToBottom();
+                            }
+                          },
+                          tooltip: _autoScrollLogs
+                              ? 'Otomatik kaydır'
+                              : 'Son kaydır',
+                        ),
+                        IconButton(
                           icon: const Icon(Icons.share),
                           onPressed: () => _shareLogs(),
                         ),
@@ -2424,21 +2451,36 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
               const Divider(height: 1),
               Expanded(
                 child: ListView.builder(
-                  controller: controller,
-                  itemCount: _logs.length,
-                  itemBuilder: (context, index) => Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    child: Text(
-                      _logs[index],
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 12,
+                  controller: _logScrollController,
+                  itemCount: _filteredLogs.length,
+                  itemBuilder: (context, index) {
+                    final log = _filteredLogs[index];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 2,
                       ),
-                    ),
-                  ),
+                      child: InkWell(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: log));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Log kopyalandı'),
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          log,
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                            color: _getLogColor(log),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -2472,6 +2514,60 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
         );
       }
     }
+  }
+
+  void _scrollToBottom() {
+    if (_logScrollController.hasClients) {
+      _logScrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  void _showLogFilterDialog() {
+    final filters = ['All', 'INFO', 'WARN', 'ERROR'];
+    final colorScheme = Theme.of(context).colorScheme;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: colorScheme.surfaceContainer,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Log Filtresi'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: filters
+              .map(
+                (filter) => ListTile(
+                  title: Text(filter),
+                  trailing: _logFilter == filter
+                      ? const Icon(Icons.check_circle, color: Colors.green)
+                      : null,
+                  onTap: () {
+                    setState(() => _logFilter = filter);
+                    Navigator.pop(context);
+                  },
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  Color _getLogColor(String log) {
+    if (log.contains('[ERROR]')) return Colors.red;
+    if (log.contains('[WARN]')) return Colors.orange;
+    if (log.contains('[INFO]')) return Colors.blue;
+    if (log.contains('[NATIVE]')) return Colors.purple;
+    return Theme.of(context).colorScheme.onSurface;
+  }
+
+  List<String> get _filteredLogs {
+    if (_logFilter == 'All') return _logs;
+    return _logs.where((log) => log.contains('[$_logFilter]')).toList();
   }
 
   Future<void> _runSpeedTest(VpnServer server) async {
