@@ -13,10 +13,11 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
-import android.os.Process
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import io.nekohasekai.libbox.BoxService
+import java.io.File
 
 class SingBoxVpnService : VpnService() {
 
@@ -49,7 +50,7 @@ class SingBoxVpnService : VpnService() {
     }
 
     private var interfaceDescriptor: ParcelFileDescriptor? = null
-    private var boxService: Long? = null
+    private var boxService: BoxService? = null
     private var connectionStartTime: Long = 0
     
     private val TAG = "SingBoxVpnService"
@@ -220,33 +221,37 @@ class SingBoxVpnService : VpnService() {
                 Log.i(TAG, "VPN interface established successfully")
                 Log.d(TAG, "FD: ${interfaceDescriptor!!.fd}")
                 
-                // SingBox Setup - try-catch ile sar
-                try {
-                    SingBoxWrapper.setup(filesDir.absolutePath, filesDir.absolutePath, false)
-                    Log.d(TAG, "SingBox setup completed")
-                } catch (e: Exception) {
-                    Log.e(TAG, "SingBox setup failed: ${e.message}", e)
-                    VpnServiceManager.updateStatus(STATE_ERROR, "SingBox setup hatası: ${e.message}")
-                    VpnServiceManager.sendLog("[ERROR] SingBox setup failed: ${e.message}")
+                // Write config to file
+                val workingDir = filesDir.absolutePath
+                val tempDir = cacheDir.absolutePath
+                val configDir = File(workingDir, "configs")
+                val configPath = SingBoxWrapper.writeConfigToFile(config, configDir)
+                
+                if (configPath == null) {
+                    Log.e(TAG, "Failed to write config file")
+                    VpnServiceManager.updateStatus(STATE_ERROR, "Config dosyası yazılamadı")
+                    VpnServiceManager.sendLog("[ERROR] Failed to write config file")
                     interfaceDescriptor?.close()
                     Handler(Looper.getMainLooper()).post { stopVpn() }
                     return@Thread
                 }
+                
+                Log.d(TAG, "Config written to: $configPath")
 
-                // SingBox Service oluştur
+                // Create BoxService
                 try {
-                    boxService = SingBoxWrapper.newService(config, interfaceDescriptor!!.fd.toLong())
-                    if (boxService == null || boxService == 0L) {
-                        Log.e(TAG, "Failed to create SingBox service: $boxService")
+                    boxService = SingBoxWrapper.createService(configPath, workingDir, tempDir)
+                    if (boxService == null) {
+                        Log.e(TAG, "Failed to create BoxService")
                         VpnServiceManager.updateStatus(STATE_ERROR, "Service oluşturulamadı")
-                        VpnServiceManager.sendLog("[ERROR] Failed to create SingBox service")
+                        VpnServiceManager.sendLog("[ERROR] Failed to create BoxService")
                         interfaceDescriptor?.close()
                         Handler(Looper.getMainLooper()).post { stopVpn() }
                         return@Thread
                     }
-                    Log.i(TAG, "SingBox service created: $boxService")
+                    Log.i(TAG, "BoxService created successfully")
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to create SingBox service: ${e.message}", e)
+                    Log.e(TAG, "Failed to create BoxService: ${e.message}", e)
                     VpnServiceManager.updateStatus(STATE_ERROR, "Service oluşturma hatası: ${e.message}")
                     VpnServiceManager.sendLog("[ERROR] Service creation failed: ${e.message}")
                     interfaceDescriptor?.close()
@@ -257,12 +262,12 @@ class SingBoxVpnService : VpnService() {
                 // Socket protection
                 protectSocketConnections()
 
-                // SingBox Service başlat
+                // Start BoxService
                 try {
-                    SingBoxWrapper.startService(boxService!!)
-                    Log.i(TAG, "SingBox service started")
+                    SingBoxWrapper.startService(boxService)
+                    Log.i(TAG, "BoxService started successfully")
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to start SingBox service: ${e.message}", e)
+                    Log.e(TAG, "Failed to start BoxService: ${e.message}", e)
                     VpnServiceManager.updateStatus(STATE_ERROR, "Service başlatma hatası: ${e.message}")
                     VpnServiceManager.sendLog("[ERROR] Service start failed: ${e.message}")
                     interfaceDescriptor?.close()
@@ -334,18 +339,19 @@ class SingBoxVpnService : VpnService() {
         // Stop VPN işlemini arka plan thread'inde çalıştır
         Thread {
             try {
-                // SingBox service kapat
+                // BoxService durdur
                 boxService?.let { service ->
-                    Log.d(TAG, "Closing SingBox service: $service")
+                    Log.d(TAG, "Stopping BoxService")
                     try {
                         if (SingBoxWrapper.isLoaded) {
+                            SingBoxWrapper.stopService(service)
                             SingBoxWrapper.closeService(service)
-                            Log.i(TAG, "SingBox service closed")
+                            Log.i(TAG, "BoxService stopped and closed")
                         } else {
-                            Log.w(TAG, "Cannot close service: library not loaded")
+                            Log.w(TAG, "Cannot stop service: library not loaded")
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error closing SingBox service: ${e.message}", e)
+                        Log.e(TAG, "Error stopping BoxService: ${e.message}", e)
                     }
                 }
                 
@@ -461,12 +467,22 @@ class SingBoxVpnService : VpnService() {
         Thread {
             try {
                 if (boxService != null && SingBoxWrapper.isLoaded) {
-                    SingBoxWrapper.closeService(boxService!!)
-                    boxService = SingBoxWrapper.newService(currentConfig ?: "", interfaceDescriptor?.fd?.toLong() ?: -1L)
-                    if (boxService != null && boxService != 0L) {
-                        SingBoxWrapper.startService(boxService!!)
-                        Log.i(TAG, "Connections reset successfully")
-                        VpnServiceManager.sendLog("[NATIVE] Connections reset")
+                    SingBoxWrapper.stopService(boxService)
+                    SingBoxWrapper.closeService(boxService)
+                    
+                    // Recreate service with same config
+                    val workingDir = filesDir.absolutePath
+                    val tempDir = cacheDir.absolutePath
+                    val configDir = File(workingDir, "configs")
+                    val configPath = SingBoxWrapper.writeConfigToFile(currentConfig ?: "", configDir)
+                    
+                    if (configPath != null) {
+                        boxService = SingBoxWrapper.createService(configPath, workingDir, tempDir)
+                        if (boxService != null) {
+                            SingBoxWrapper.startService(boxService)
+                            Log.i(TAG, "Connections reset successfully")
+                            VpnServiceManager.sendLog("[NATIVE] Connections reset")
+                        }
                     }
                 }
             } catch (e: Exception) {

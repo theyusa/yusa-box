@@ -1,0 +1,74 @@
+package io.nekohasekai.libbox
+
+/**
+ * Libbox is the main entry point for sing-box native library.
+ * This class provides static methods to interact with the sing-box core.
+ */
+object Libbox {
+    
+    init {
+        System.loadLibrary("box")
+    }
+    
+    /**
+     * Initialize the libbox library
+     */
+    @JvmStatic
+    external fun init()
+    
+    /**
+     * Create a new BoxService instance
+     * @param options Service options
+     * @return BoxService instance
+     */
+    @JvmStatic
+    external fun newService(options: ServiceOptions): BoxService
+    
+    /**
+     * Create a new BoxService with platform interface
+     * @param platformInterface Platform interface implementation
+     * @param options Service options
+     * @return BoxService instance
+     */
+    @JvmStatic
+    external fun newService(platformInterface: PlatformInterface, options: ServiceOptions): BoxService
+    
+    /**
+     * Check if a config is valid
+     * @param config Config content
+     * @return Error message if invalid, null if valid
+     */
+    @JvmStatic
+    external fun checkConfig(config: String): String?
+    
+    /**
+     * Format config to standard format
+     * @param config Config content
+     * @return Formatted config
+     */
+    @JvmStatic
+    external fun formatConfig(config: String): String
+    
+    /**
+     * Format bytes to human readable string
+     * @param bytes Number of bytes
+     * @return Human readable string (e.g., "1.5 MB")
+     */
+    @JvmStatic
+    external fun formatBytes(bytes: Long): String
+    
+    /**
+     * Protect a socket from VPN routing
+     * @param fd Socket file descriptor
+     * @return true if successful
+     */
+    @JvmStatic
+    external fun protect(fd: Int): Boolean
+    
+    /**
+     * Reset all connections
+     * @param reset Whether to reset connections
+     */
+    @JvmStatic
+    external fun resetAllConnections(reset: Boolean)
+}

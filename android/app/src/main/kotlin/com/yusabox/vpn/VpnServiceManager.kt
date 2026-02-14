@@ -122,13 +122,13 @@ object VpnServiceManager {
         }
 
         return try {
-            val stats = SingBoxWrapper.getTrafficStats()
-            val uploadSpeed = stats[0] - lastUploadBytes
-            val downloadSpeed = stats[1] - lastDownloadBytes
+            val (upload, download) = SingBoxWrapper.getTrafficStats()
+            val uploadSpeed = upload - lastUploadBytes
+            val downloadSpeed = download - lastDownloadBytes
 
             hashMapOf(
-                "upload" to stats[0],
-                "download" to stats[1],
+                "upload" to upload,
+                "download" to download,
                 "uploadSpeed" to uploadSpeed,
                 "downloadSpeed" to downloadSpeed
             )
