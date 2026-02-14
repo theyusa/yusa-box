@@ -12,10 +12,14 @@ import io.flutter.plugin.common.EventChannel
 class MainActivity : FlutterActivity() {
     private val METHOD_CHANNEL = "com.yusabox.vpn/service"
     private val EVENT_CHANNEL = "com.yusabox.vpn/status"
+    private val SPEED_TEST_METHOD_CHANNEL = "com.yusabox.vpn/speedtest"
+    private val SPEED_TEST_EVENT_CHANNEL = "com.yusabox.vpn/speedtest/status"
     private val VPN_REQUEST_CODE = 100
 
     private var methodChannel: MethodChannel? = null
     private var eventChannel: EventChannel? = null
+    private var speedTestMethodChannel: MethodChannel? = null
+    private var speedTestEventChannel: EventChannel? = null
     private var pendingResult: MethodChannel.Result? = null
 
     private val TAG = "MainActivity"
@@ -66,8 +70,44 @@ class MainActivity : FlutterActivity() {
 
         eventChannel?.setStreamHandler(VpnServiceManager.StatusStreamHandler)
         
+        speedTestMethodChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            SPEED_TEST_METHOD_CHANNEL
+        )
+
+        speedTestMethodChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "startSpeedTest" -> {
+                    val serverAddress = call.argument<String>("serverAddress")
+                    val serverName = call.argument<String>("serverName")
+                    if (serverAddress != null && serverName != null) {
+                        val started = SpeedTestServiceManager.startSpeedTest(serverAddress, serverName)
+                        result.success(started)
+                    } else {
+                        result.error("INVALID_PARAMS", "Missing server address or name", null)
+                    }
+                }
+                "stopSpeedTest" -> {
+                    val stopped = SpeedTestServiceManager.stopSpeedTest()
+                    result.success(stopped)
+                }
+                else -> {
+                    result.notImplemented()
+                }
+            }
+        }
+
+        speedTestEventChannel = EventChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            SPEED_TEST_EVENT_CHANNEL
+        )
+
+        speedTestEventChannel?.setStreamHandler(SpeedTestServiceManager.StatusStreamHandler)
+        
         Log.i(TAG, "Method channel configured: $METHOD_CHANNEL")
         Log.i(TAG, "Event channel configured: $EVENT_CHANNEL")
+        Log.i(TAG, "Speed test method channel configured: $SPEED_TEST_METHOD_CHANNEL")
+        Log.i(TAG, "Speed test event channel configured: $SPEED_TEST_EVENT_CHANNEL")
     }
 
     private fun requestVpnPermission(result: MethodChannel.Result) {
