@@ -196,11 +196,13 @@ class MainActivity : FlutterActivity() {
 
     private fun startVpnService(config: String?, serverName: String?, result: MethodChannel.Result) {
         if (config == null) {
+            Log.e(TAG, "Config is null")
             result.error("INVALID_CONFIG", "Config is null", null)
             return
         }
 
-        if (config.isEmpty() || config.isBlank()) {
+        if (config.isEmpty()) {
+            Log.e(TAG, "Config is empty")
             result.error("INVALID_CONFIG", "Config is empty", null)
             return
         }
@@ -210,10 +212,15 @@ class MainActivity : FlutterActivity() {
             val hasOutbounds = configJson.has("outbounds") && configJson.getJSONArray("outbounds").length() > 0
             val hasInbounds = configJson.has("inbounds") && configJson.getJSONArray("inbounds").length() > 0
             
-            if (!hasOutbounds || !hasInbounds) {
-                Log.e(TAG, "Invalid config: missing outbounds or inbounds")
-                result.error("INVALID_CONFIG", "Config missing required fields", null)
+            if (!hasOutbounds) {
+                Log.e(TAG, "Invalid config: missing outbounds")
+                result.error("INVALID_CONFIG", "Config missing outbounds", null)
+                VpnServiceManager.sendLog("[ERROR] Config missing outbounds")
                 return
+            }
+
+            if (!hasInbounds) {
+                Log.w(TAG, "Config missing inbounds, using defaults")
             }
 
             val intent = Intent(this, SingBoxVpnService::class.java).apply {
@@ -222,15 +229,20 @@ class MainActivity : FlutterActivity() {
                 putExtra(SingBoxVpnService.EXTRA_SERVER_NAME, serverName ?: "Unknown")
             }
 
+            Log.i(TAG, "Starting VPN service with config length: ${config.length}")
             startService(intent)
             result.success(true)
             
-            Log.i(TAG, "Starting VPN service: $serverName")
+            Log.i(TAG, "VPN service started: $serverName")
             VpnServiceManager.sendLog("[INFO] Starting VPN: $serverName")
+        } catch (e: org.json.JSONException) {
+            Log.e(TAG, "JSON parse error: ${e.message}", e)
+            result.error("INVALID_CONFIG", "Invalid JSON: ${e.message}", null)
+            VpnServiceManager.sendLog("[ERROR] Invalid JSON config")
         } catch (e: Exception) {
-            Log.e(TAG, "Config validation error", e)
-            result.error("INVALID_CONFIG", "Config is invalid: ${e.message}", null)
-            VpnServiceManager.sendLog("[ERROR] Config validation failed: ${e.message}")
+            Log.e(TAG, "Config validation error: ${e.message}", e)
+            result.error("INVALID_CONFIG", "Config error: ${e.message}", null)
+            VpnServiceManager.sendLog("[ERROR] Config validation failed")
         }
     }
 
