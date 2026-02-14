@@ -20,7 +20,8 @@ object PingServiceManager {
     data class PingResult(
         val serverId: String,
         val latencyMs: Int,
-        val success: Boolean
+        val success: Boolean,
+        val isLoading: Boolean = false
     )
     
     object StatusStreamHandler : EventChannel.StreamHandler {
@@ -97,7 +98,7 @@ object PingServiceManager {
             val startTime = System.currentTimeMillis()
             val socket = Socket()
             socket.soTimeout = timeoutMs
-            socket.connect(InetSocketAddress(address, port), timeoutMs.toLong())
+            socket.connect(InetSocketAddress(address, port), timeoutMs)
             val latency = (System.currentTimeMillis() - startTime).toInt()
             socket.close()
             latency
