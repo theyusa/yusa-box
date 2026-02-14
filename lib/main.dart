@@ -395,6 +395,30 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
     await PingService().pingServer(server.id, server.address, server.port);
   }
 
+  Future<void> _pingFilteredServers() async {
+    final box = ServerService.serversBox;
+    final allServers = box.values.toList();
+
+    List<VpnServer> filteredServers = [];
+    if (_selectedSubId == null) {
+      filteredServers = allServers;
+    } else {
+      final targetSub = _subscriptions.firstWhere(
+        (s) => s.id == _selectedSubId,
+        orElse: () => _subscriptions.first,
+      );
+      filteredServers = targetSub.servers;
+    }
+
+    final serversToPing = filteredServers.take(20).map((server) {
+      return {'id': server.id, 'address': server.address, 'port': server.port};
+    }).toList();
+
+    if (serversToPing.isNotEmpty) {
+      await PingService().pingServers(serversToPing);
+    }
+  }
+
   Future<void> _fetchCurrentIp() async {
     try {
       final response = await http
@@ -1137,14 +1161,19 @@ class _VPNHomePageState extends ConsumerState<VPNHomePage> {
                               IconButton(
                                 tooltip: 'Ping Testi',
                                 icon: const Icon(Icons.network_check),
-                                onPressed: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Tüm serverlar için ping testi başlatıldı...',
+                                onPressed: () async {
+                                  final scaffoldMessenger =
+                                      ScaffoldMessenger.of(context);
+                                  await _pingFilteredServers();
+                                  if (mounted) {
+                                    scaffoldMessenger.showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Tüm serverlar için ping testi başlatıldı...',
+                                        ),
                                       ),
-                                    ),
-                                  );
+                                    );
+                                  }
                                 },
                               ),
                               PopupMenuButton<SortOption>(
