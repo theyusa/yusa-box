@@ -67,7 +67,7 @@ class SingBoxVpnService : VpnService() {
     external fun newService(config: String, fd: Long): Long
     external fun startService(ptr: Long)
     external fun closeService(ptr: Long)
-    override fun protect(socket: Int): Boolean
+    external fun protect(socket: Int): Boolean
     external fun getTrafficStats(): Array<Long>
 
     override fun onCreate() {
