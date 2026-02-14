@@ -1,5 +1,7 @@
 package io.nekohasekai.libbox
 
+import android.os.ParcelFileDescriptor
+
 /**
  * Libbox is the main entry point for sing-box native library.
  * This class provides static methods to interact with the sing-box core.
@@ -11,27 +13,41 @@ object Libbox {
     }
     
     /**
-     * Initialize the libbox library
+     * Initialize the libbox library with setup options
+     * @param options Setup options
      */
     @JvmStatic
-    external fun init()
+    external fun setup(options: SetupOptions)
     
     /**
      * Create a new BoxService instance
-     * @param options Service options
+     * @param config Config content as String
+     * @param platformInterface Platform interface implementation
      * @return BoxService instance
      */
     @JvmStatic
-    external fun newService(options: ServiceOptions): BoxService
+    external fun newService(config: String, platformInterface: PlatformInterface): BoxService
     
     /**
-     * Create a new BoxService with platform interface
-     * @param platformInterface Platform interface implementation
-     * @param options Service options
-     * @return BoxService instance
+     * Set memory limit
+     * @param limit Whether to enable memory limit
      */
     @JvmStatic
-    external fun newService(platformInterface: PlatformInterface, options: ServiceOptions): BoxService
+    external fun setMemoryLimit(limit: Boolean)
+    
+    /**
+     * Set locale
+     * @param locale Locale string (e.g., "en_US")
+     */
+    @JvmStatic
+    external fun setLocale(locale: String)
+    
+    /**
+     * Redirect stderr to file
+     * @param path File path
+     */
+    @JvmStatic
+    external fun redirectStderr(path: String)
     
     /**
      * Check if a config is valid
@@ -71,4 +87,10 @@ object Libbox {
      */
     @JvmStatic
     external fun resetAllConnections(reset: Boolean)
+    
+    // Interface types
+    const val InterfaceTypeWIFI = 0
+    const val InterfaceTypeCellular = 1
+    const val InterfaceTypeEthernet = 2
+    const val InterfaceTypeOther = 3
 }

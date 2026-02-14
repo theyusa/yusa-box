@@ -1,17 +1,12 @@
 package io.nekohasekai.libbox
 
+import android.os.ParcelFileDescriptor
+
 /**
  * BoxService is the main service class for sing-box VPN.
  * This class wraps the native BoxService and provides Java/Kotlin interface.
  */
 class BoxService {
-    
-    private var nativePtr: Long = 0
-    
-    /**
-     * Private constructor - use Libbox.newService() to create instances
-     */
-    private constructor()
     
     /**
      * Start the service

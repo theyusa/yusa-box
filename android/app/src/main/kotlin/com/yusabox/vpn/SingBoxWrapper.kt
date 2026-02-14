@@ -3,8 +3,7 @@ package com.yusabox.vpn
 import android.util.Log
 import io.nekohasekai.libbox.BoxService
 import io.nekohasekai.libbox.Libbox
-import io.nekohasekai.libbox.ServiceOptions
-import java.io.File
+import io.nekohasekai.libbox.SetupOptions
 
 object SingBoxWrapper {
     private val TAG = "SingBoxWrapper"
@@ -15,10 +14,8 @@ object SingBoxWrapper {
         try {
             // Load the native library
             System.loadLibrary("box")
-            // Initialize libbox
-            Libbox.init()
             isLoaded = true
-            Log.i(TAG, "SingBox library loaded and initialized successfully")
+            Log.i(TAG, "SingBox library loaded successfully")
         } catch (e: UnsatisfiedLinkError) {
             loadError = e.message
             Log.e(TAG, "Failed to load SingBox library: ${e.message}", e)
@@ -33,25 +30,45 @@ object SingBoxWrapper {
     fun getLoadError(): String? = loadError
 
     /**
+     * Initialize libbox with setup options
+     * @param basePath Base path for libbox
+     * @param workingPath Working directory path
+     * @param tempPath Temp directory path
+     */
+    @JvmStatic
+    fun setup(basePath: String, workingPath: String, tempPath: String) {
+        if (!isLoaded) {
+            Log.e(TAG, "Cannot setup: library not loaded")
+            throw IllegalStateException("SingBox library not loaded: $loadError")
+        }
+        try {
+            val options = SetupOptions().apply {
+                this.basePath = basePath
+                this.workingPath = workingPath
+                this.tempPath = tempPath
+            }
+            Libbox.setup(options)
+            Log.i(TAG, "Libbox setup completed")
+        } catch (e: Exception) {
+            Log.e(TAG, "Setup failed: ${e.message}", e)
+            throw e
+        }
+    }
+
+    /**
      * Create a new BoxService instance
-     * @param configPath Path to the sing-box config file
-     * @param workingDir Working directory for sing-box
-     * @param tempDir Temp directory for sing-box
+     * @param config Config content as String (JSON)
+     * @param platformInterface Platform interface implementation
      * @return BoxService instance or null if creation failed
      */
     @JvmStatic
-    fun createService(configPath: String, workingDir: String, tempDir: String): BoxService? {
+    fun createService(config: String, platformInterface: io.nekohasekai.libbox.PlatformInterface): BoxService? {
         if (!isLoaded) {
             Log.e(TAG, "Cannot create service: library not loaded")
             return null
         }
         return try {
-            val options = ServiceOptions(
-                configPath = configPath,
-                workingDir = workingDir,
-                cacheDir = tempDir
-            )
-            Libbox.newService(options).also {
+            Libbox.newService(config, platformInterface).also {
                 Log.i(TAG, "BoxService created successfully")
             }
         } catch (e: Exception) {
@@ -80,28 +97,6 @@ object SingBoxWrapper {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start BoxService: ${e.message}", e)
             throw e
-        }
-    }
-
-    /**
-     * Stop the BoxService
-     * @param service The BoxService instance
-     */
-    @JvmStatic
-    fun stopService(service: BoxService?) {
-        if (!isLoaded) {
-            Log.e(TAG, "Cannot stop service: library not loaded")
-            return
-        }
-        if (service == null) {
-            Log.w(TAG, "Cannot stop service: null instance")
-            return
-        }
-        try {
-            // BoxService doesn't have stop method, we use close instead
-            Log.i(TAG, "BoxService stopped")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to stop BoxService: ${e.message}", e)
         }
     }
 
@@ -163,27 +158,6 @@ object SingBoxWrapper {
         // Traffic stats not directly available in this API version
         // Return dummy values
         return Pair(0L, 0L)
-    }
-
-    /**
-     * Write config to a file and return the path
-     * @param config The config content
-     * @param configDir The directory to write config to
-     * @return The path to the config file
-     */
-    @JvmStatic
-    fun writeConfigToFile(config: String, configDir: File): String? {
-        return try {
-            if (!configDir.exists()) {
-                configDir.mkdirs()
-            }
-            val configFile = File(configDir, "config.json")
-            configFile.writeText(config)
-            configFile.absolutePath
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to write config file: ${e.message}", e)
-            null
-        }
     }
 
     /**
